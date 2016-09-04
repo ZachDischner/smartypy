@@ -16,9 +16,12 @@ Modified: 04/Sept/2016
 Description:
     Multivariate Linear Regression utilities written to mimic Matlab/Octave
     scripts developed for the Coursera Machine Learning course.
-    Currently supports Python3 only. Use accompanying environment.yml to
-    set up a compatible environment using
-        $ conda ....
+    Currently supports Python3.5 only. Main reason is to use the new 3.5 `@` infix
+    matrix math operator. Otherwise `X.dot(theta)` gets pretty cumbersome.
+    Setup a new bare bones environment using conda or use teh accompanying environment.yml
+    to set up a compatible environment using:
+        $ conda env create -f environment.yml
+        $ source activate python35
 
 Note:
     Error checking, vector sizes, etc are omitted for the time being.
@@ -37,8 +40,10 @@ Nomenclature:
         theta:  Linear Regression Coefficient Vector (n x 1)
 
 TODO:
-    * Type/vector size error handling
-    * Optimization
+    * Type/vector size error handling?
+    * Optimizations, @njit,
+    * Refactor for infix `@` operator
+    * Unit tests!!
 
     """
 
