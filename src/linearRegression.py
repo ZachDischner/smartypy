@@ -55,6 +55,7 @@ import os
 import sys
 import numpy as np
 import pandas as pd
+import pylab as plt
 from numba import jit, njit
 
 ## Local utility module
@@ -103,9 +104,8 @@ def solve_normal(X,y):
         theta:
     """
     ## Could one line it, but man it is ugly with numpy matrix syntax...
-    Xt = X.transpose()
-    _component = np.linalg.pinv(Xt.dot(X))
-    return _component.dot(Xt).dot(y)
+    theta = np.linalg.pinv(X.T @ X) @ X.T @ y
+    return theta
 
 ## @njit on these speed it up from 91us to 3us. Cool! About 9x faster than matlab
 @njit
@@ -185,6 +185,36 @@ def gradient_descent(X,y,theta,alpha,num_iters=1000,tol=None):
             break
     return theta, J_history
 
+def plot_3d(X,y,theta,normalTheta=None, xlabel="x",ylabel="y", zlabel="z"):
+    """Vis helper for 3d datasets
+
+    only helpful for n=2 feature learning problems
+    """
+    m = len(y)
+
+    ###### First, plot hypothsis
+    xs = np.linspace(X[:,1].min(), X[:,1].max(), m)
+    ys = np.linspace(X[:,2].min(), X[:,2].max(), m)
+    Xh = np.ones(X.shape); Xh[:,1] = xs; Xh[:,2] = ys
+    Xhn,mu,sigma = normalize_features(Xh)
+    zs = Xhn @ theta
+
+    ###### Plot it! 
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(X[:,1],X[:,2],zs=y, label="Sample Data")
+    ax.plot(xs,ys,zs=zs, label="Hypothesis")
+    if normalTheta is not None:
+        normal_zs = Xh @ normalTheta
+        ax.plot(xs,ys,zs=normal_zs, label="Normal Hypothesis")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
+    ax.legend()
+    plt.show(block=False)
+    return ax
+
+
 def test():
     """Comprehensive Unit Tests? How about a pickle file with X, y, theta
     and comparative solutions for the same dataset given by Matlab?
@@ -204,7 +234,7 @@ def test():
 
     ## Prepend the theta0 column to X
     X = np.insert(X, 0, 1, axis=1)
-    
+
     theta = np.zeros(X.shape[1])
     return X, y, theta
 
