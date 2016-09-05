@@ -1,5 +1,6 @@
 *~
 .DS_Store
 test.o
-*pycahe*
+*__pycahe__*
+*cache*
 *.test
