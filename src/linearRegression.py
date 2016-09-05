@@ -38,12 +38,13 @@ Nomenclature:
         X:      Matrix of Feature columns (m x n)
         J:      Cost of a sample (single value)
         theta:  Linear Regression Coefficient Vector (n x 1)
+        h:      Hypothesis of form: h(theta) = X @ theta
 
 TODO:
     * Type/vector size error handling?
     * Optimizations, @njit,
     * Refactor for infix `@` operator
-    * Unit tests!!
+    * Unit tests!! *doctest for small functions? pytest for bigger ones
 
     """
 
@@ -51,11 +52,16 @@ TODO:
 #                                   Imports
 #----------*----------*----------*----------*----------*----------*----------*
 import os
+import sys
 import numpy as np
+import pandas as pd
 from numba import jit, njit
 
 ## Local utility module
+_here = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, _here)
 import utils
+
 ###### Module variables
 
 ##############################################################################
@@ -89,6 +95,7 @@ def solve_normal(X,y):
     Algorithm:
         Standard least squares minimization right?
         inv(X'*X) * X * y
+
     Args:
     --
 
@@ -117,27 +124,66 @@ def _normalize_feature(x):
         x_norm: Normalized feature vector
         mu:     Computed mean of normalization
         sigma:  Computed standard deviation of feature
+
+    >>> _normalize_feature(np.array([2104, 1600, 2400, 1416]))
+    (array([ 0.57160715, -0.71450894,  1.32694517, -1.18404339]), 1880.0, 391.8775318897474)
     """
-    sigma  = x.std() # Kinda confused about dimensional normalization. ddof=1 matches matlab's default
+    sigma  = x.std() # Kinda confused about dimensional normalization. ddof=1 matches matlab's default. Can't do with numba
     mu     = x.mean()
-    x_norm = (x-mu)/(sigma or 1)
+    if sigma == 0:
+        x_norm = x*1.0 # Do this so we can jit, makes sure x_norm is always float
+    else:
+        x_norm = (x-mu)/sigma
     return x_norm, mu, sigma
 
 @njit
 def normalize_features(X):
-    """Normalize a feature array. See _normalize_feature"""
+    """Normalize a feature array. See _normalize_feature
+    """
     n = X.shape[1]
     X_norm = np.zeros(X.shape)
     mu, sigma = np.zeros(n),np.zeros(n)
 
     ## Smarter way to map() this or something??
+    # Figure this is pretty fast and readable. Could do same thing with a comprehension but
+    # reconstruction is pretty ugly
     for idx in range(n):
         X_norm[:,idx],mu[idx], sigma[idx] = _normalize_feature(X[:,idx])
     return X_norm, mu, sigma
 
-def denormalize_features(X_norm, mu, sigma):
-    """Denormalize features, get backto starting point"""
+def denormalize(X_norm, mu, sigma):
+    """Denormalize features, get back to starting point
+
+    Same logic works for single vector feature (x) and matrix of feature columns (X)
+    """
     X = X_norm*sigma + mu
+    return X
+
+def gradient_descent(X,y,theta,alpha,num_iters=1000,tol=None):
+    """Perform gradient descent optimization to learn theta that creates the best fit
+    hypothesis h(theta)=X @ theta to the dataset
+
+    Args:
+        X:
+        y:
+        alpha:  Learning Rate
+
+    Kwargs:
+        num_iters:  (Real) Maximum iterations to perform optimization
+        tol:        (Real) If provided, superscede num_iters, breaking optimization if tolerance cost is reached
+    """
+    m = 1.0*len(y)
+    J_history =[]
+    for iter in range(0,num_iters):
+        ## Compute new theta
+        theta = theta -  (alpha/m) * ((X @ theta - y).T @ X).T
+        #print("theta: {}".format(theta))
+
+        ## Save new J cost
+        J_history.append(compute_cost(X,y,theta))
+        if (tol is not None) and (J_history[-1] <= tol):
+            break
+    return theta, J_history
 
 def test():
     """Comprehensive Unit Tests? How about a pickle file with X, y, theta
@@ -151,4 +197,14 @@ def test():
     true cost: 7.522274051241411e+08
     normal:    1.0e+04 * [-4.698317251656216, 0.005848790585483, 9.808214891250811]
     """
-    pass
+    ## Load data into dataframe
+    df = pd.read_csv("../test/data/ex1data2.txt",names=["area","rooms","price"])
+    X = np.array(df.iloc[:,0:2])
+    y = np.array(df.price)
+
+    ## Prepend the theta0 column to X
+    X = np.insert(X, 0, 1, axis=1)
+    
+    theta = np.zeros(X.shape[1])
+    return X, y, theta
+
