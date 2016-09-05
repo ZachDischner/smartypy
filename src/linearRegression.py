@@ -45,6 +45,7 @@ TODO:
     * Optimizations, @njit,
     * Refactor for infix `@` operator
     * Unit tests!! *doctest for small functions? pytest for bigger ones
+    * Add J(theta) contour plot
 
     """
 

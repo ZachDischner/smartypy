@@ -30,8 +30,6 @@
 
 %% Clear and Close Figures
 clear ; close all; clc
-addpath('../src')
-addpth('data')
 
 fprintf('Loading data ...\n');
 
