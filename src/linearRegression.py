@@ -32,10 +32,11 @@ Nomenclature:
     function definitions
 
         n:      Number of features
-        m:      Number of examples/samples
-        x:      Feature dataset (m x 1)
-        y:      Sample solution (m x 1)
-        X:      Matrix of Feature columns (m x n)
+        m:      Number of examples/samples. (Includes x0 feature)
+        x:      Feature vector dataset (m x 1)
+        X:      Feature Matrix (m x n)
+        Xn:     Normalized Feature Matrix (m x n)
+        y:      Target/Solution vector (m x 1)
         J:      Cost of a sample (single value)
         theta:  Linear Regression Coefficient Vector (n x 1)
         h:      Hypothesis of form: h(theta) = X @ theta
@@ -160,54 +161,73 @@ def denormalize(X_norm, mu, sigma):
     X = X_norm*sigma + mu
     return X
 
-def gradient_descent(X,y,theta,alpha,num_iters=1000,tol=None):
+def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None):
     """Perform gradient descent optimization to learn theta that creates the best fit
     hypothesis h(theta)=X @ theta to the dataset
 
     Args:
-        X:
-        y:
-        alpha:  Learning Rate
+        Xn:     Normalized Feature Matrix
+        y:      Target Vector
+        alpha:  (Real, >0) Learning Rate
 
     Kwargs:
         num_iters:  (Real) Maximum iterations to perform optimization
         tol:        (Real) If provided, superscede num_iters, breaking optimization if tolerance cost is reached
     """
+    
+    ## Check to see if Xn is normalized. Warn if not. 
+    if round(Xn[:,1].std()) != 1:
+        utils.printRed("Gradient Descent X matrix is not normalized. Pass in normalized in the future to ensure convergence")
+        Xn,_,_ = normalize_features(Xn)
+
     m = 1.0*len(y)
     J_history =[]
-    for iter in range(0,num_iters):
+    for idx in range(0,num_iters):
         ## Compute new theta
-        theta = theta -  (alpha/m) * ((X @ theta - y).T @ X).T
-        #print("theta: {}".format(theta))
+        theta = theta -  (alpha/m) * ((Xn @ theta - y).T @ Xn).T
 
         ## Save new J cost
-        J_history.append(compute_cost(X,y,theta))
+        J_history.append(compute_cost(Xn,y,theta))
         if (tol is not None) and (J_history[-1] <= tol):
             break
+
+        ## Check to make sure J is decreasing...
+        if (idx > 1) and J_history[-2] <= J_history[-1]:
+            utils.printRed("Gradient Descent is not decreasing! Alpha: {}\t previous J {}\tJ {}. Try decreasing alpha".format(alpha,J_history[-2], J_history[-1]))
+
     return theta, J_history
 
-def plot_3d(X,y,theta,normalTheta=None, xlabel="x",ylabel="y", zlabel="z"):
+def plot_3d(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
     """Vis helper for 3d datasets
 
     only helpful for n=2 feature learning problems
+
+    No catches for wrong dimensions, mismatched dataset, or too big of Xs for Normal Equation...
+
+    Args:
+        X:  [Matrix] Unnormalized Feature Matrix X
     """
     m = len(y)
+    if theta is None:
+        theta, J_History = gradient_descent(X,y,[0,0,0],0.01)
 
     ###### First, plot hypothsis
     xs = np.linspace(X[:,1].min(), X[:,1].max(), m)
     ys = np.linspace(X[:,2].min(), X[:,2].max(), m)
     Xh = np.ones(X.shape); Xh[:,1] = xs; Xh[:,2] = ys
-    Xhn,mu,sigma = normalize_features(Xh)
+    Xhn, mu, sigma = normalize_features(Xh)
     zs = Xhn @ theta
+
+    if theta_norm is None:
+        theta_norm = solve_normal(X,y)
+        normal_zs = Xh @ theta_norm
 
     ###### Plot it! 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(X[:,1],X[:,2],zs=y, label="Sample Data")
     ax.plot(xs,ys,zs=zs, label="Hypothesis")
-    if normalTheta is not None:
-        normal_zs = Xh @ normalTheta
-        ax.plot(xs,ys,zs=normal_zs, label="Normal Hypothesis")
+    ax.plot(xs,ys,zs=normal_zs, label="Normal Hypothesis")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_zlabel(zlabel)
