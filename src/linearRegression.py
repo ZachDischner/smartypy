@@ -44,7 +44,6 @@ Nomenclature:
 TODO:
     * Type/vector size error handling?
     * Optimizations, @njit,
-    * Refactor for infix `@` operator
     * Unit tests!! *doctest for small functions? pytest for bigger ones
     * Add J(theta) contour plot
 
@@ -86,7 +85,7 @@ def compute_cost(X,y,theta):
         J:  (Real) Cost of hypothesis
     """
     m = len(y)
-    hypothesis = X.dot(theta)
+    hypothesis = X @ theta
     error = (hypothesis - y)**2.0
     J = (1.0/2.0/m) * sum(error)
     return J
@@ -143,25 +142,25 @@ def normalize_features(X):
     """Normalize a feature array. See _normalize_feature
     """
     n = X.shape[1]
-    X_norm = np.zeros(X.shape)
+    Xn = np.zeros(X.shape)
     mu, sigma = np.zeros(n),np.zeros(n)
 
     ## Smarter way to map() this or something??
     # Figure this is pretty fast and readable. Could do same thing with a comprehension but
     # reconstruction is pretty ugly
     for idx in range(n):
-        X_norm[:,idx],mu[idx], sigma[idx] = _normalize_feature(X[:,idx])
-    return X_norm, mu, sigma
+        Xn[:,idx],mu[idx], sigma[idx] = _normalize_feature(X[:,idx])
+    return Xn, mu, sigma
 
-def denormalize(X_norm, mu, sigma):
+def denormalize(Xn, mu, sigma):
     """Denormalize features, get back to starting point
 
     Same logic works for single vector feature (x) and matrix of feature columns (X)
     """
-    X = X_norm*sigma + mu
+    X = Xn*sigma + mu
     return X
 
-def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None):
+def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None,theta_hist=False):
     """Perform gradient descent optimization to learn theta that creates the best fit
     hypothesis h(theta)=X @ theta to the dataset
 
@@ -173,18 +172,21 @@ def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None):
     Kwargs:
         num_iters:  (Real) Maximum iterations to perform optimization
         tol:        (Real) If provided, superscede num_iters, breaking optimization if tolerance cost is reached
+        theta_hist: (Bool) IF provided, also return theta's history
     """
     
-    ## Check to see if Xn is normalized. Warn if not. 
+    # Check to see if Xn is normalized. Warn if not. 
     if round(Xn[:,1].std()) != 1:
-        utils.printRed("Gradient Descent X matrix is not normalized. Pass in normalized in the future to ensure convergence")
-        Xn,_,_ = normalize_features(Xn)
+        utils.printYellow("Gradient Descent X matrix is not normalized. Pass in normalized in the future to ensure convergence")
+        # Xn,_,_ = normalize_features(Xn)
 
     m = 1.0*len(y)
     J_history =[]
+    theta_history = []
     for idx in range(0,num_iters):
         ## Compute new theta
         theta = theta -  (alpha/m) * ((Xn @ theta - y).T @ Xn).T
+        theta_history.append(theta)
 
         ## Save new J cost
         J_history.append(compute_cost(Xn,y,theta))
@@ -194,10 +196,11 @@ def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None):
         ## Check to make sure J is decreasing...
         if (idx > 1) and J_history[-2] <= J_history[-1]:
             utils.printRed("Gradient Descent is not decreasing! Alpha: {}\t previous J {}\tJ {}. Try decreasing alpha".format(alpha,J_history[-2], J_history[-1]))
-
+    if theta_hist:
+        return theta, J_history, np.vstack(theta_history)
     return theta, J_history
 
-def plot_3d(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
+def fit_plot(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
     """Vis helper for 3d datasets
 
     only helpful for n=2 feature learning problems
@@ -234,6 +237,59 @@ def plot_3d(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
     ax.legend()
     plt.show(block=False)
     return ax
+
+def J_plot(X,y,theta_guess=None, theta0=None,theta1=None,factor=10):
+    """Producesd contout and surface plot to visualize J cost function. Helper to make sure we're on track.
+
+    Only works for n=1 feature linear regression
+
+    Kwargs:
+        theta#: (Vector) Range of theta#s to visualize
+    """
+    if theta_guess is None:
+        theta_guess = [0,0]
+
+    Xn = normalize_features(X) ## Doesn't hurt if already normalized
+
+    ## Hard to compare j_hist since it is based off normalized...?
+    theta, J_hist, theta_hist = gradient_descent(X,y,theta_guess, 0.01,theta_hist=True)
+    theta = solve_normal(X,y)
+    best_cost = compute_cost(X,y,theta)
+    
+    if theta0 is None:
+        theta0 = np.linspace(theta[0]-theta[0]*factor,theta[0]+theta[0]*factor)
+    if theta1 is None:
+        theta1 = np.linspace(theta[1]-theta[0]*factor,theta[1]+theta[0]*factor)
+    XX,YY = np.meshgrid(theta0,theta1)
+
+
+    J = np.zeros((len(theta0),len(theta1)))
+    for id1 in range(0,len(theta0)):
+        for id2 in range(0,len(theta1)):
+            J[id1,id2] = compute_cost(X,y, [theta0[id1], theta1[id2]])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(211, projection='3d')
+    ax.plot_surface(XX,YY,J.T,rstride=5,cstride=5)
+    ax.set_xlabel("Theta0")
+    ax.set_ylabel("Theta1")
+    ax.set_zlabel("J")
+    ax.plot(theta_hist[0::100,0],theta_hist[0::100,1], zs=J_hist[0::100], color='y', marker='x', mew=2, ms=3, mfc='y', mec='y',label="Descending")
+    ax.plot([theta[0]],[theta[1]], zs=[best_cost], color='r', marker='x', mew=3, ms=7, mfc='r', mec='r',label="Solution")
+    ax.legend()
+
+
+    ax2 = fig.add_subplot(212)
+    levels = np.linspace(J.min()*0.5,J.max()*1.25,50)
+    ax2.contour(theta0,theta1,J.T,levels, linewidth=2, label="Cost Contour")
+    ax2.set_xlabel("Theta0")
+    ax2.set_ylabel("Theta1")
+
+    ax2.plot(theta[0],theta[1], marker='x', mew=5, ms=10, mfc='r', mec='r', label="Solved Theta")
+    ax2.legend()
+
+    return theta,theta0,theta1,J,ax
+
 
 
 def test():
