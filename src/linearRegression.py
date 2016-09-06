@@ -57,6 +57,7 @@ import sys
 import numpy as np
 import pandas as pd
 import pylab as plt
+from mpl_toolkits.mplot3d import axes3d
 from numba import jit, njit
 
 ## Local utility module
@@ -190,7 +191,7 @@ def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None,theta_hist=False):
 
         ## Save new J cost
         J_history.append(compute_cost(Xn,y,theta))
-        if (tol is not None) and (J_history[-1] <= tol):
+        if (idx>1) and (tol is not None) and (J_history[-1]-J_history[-2] <= tol):
             break
 
         ## Check to make sure J is decreasing...
@@ -212,7 +213,8 @@ def fit_plot(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
     """
     m = len(y)
     if theta is None:
-        theta, J_History = gradient_descent(X,y,[0,0,0],0.01)
+        Xn,mu,sigma = normalize_features(X)
+        theta, J_History = gradient_descent(Xn,y,[0,0,0],0.01)
 
     ###### First, plot hypothsis
     xs = np.linspace(X[:,1].min(), X[:,1].max(), m)
