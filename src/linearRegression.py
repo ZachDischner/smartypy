@@ -34,11 +34,11 @@ Nomenclature:
         n:      Number of features
         m:      Number of examples/samples. (Includes x0 feature)
         x:      Feature vector dataset (m x 1)
-        X:      Feature Matrix (m x n)
-        Xn:     Normalized Feature Matrix (m x n)
+        X:      Feature or Design Matrix (m x n+1)
+        Xn:     Normalized Feature Matrix (m x n+1)
         y:      Target/Solution vector (m x 1)
-        J:      Cost of a sample (single value)
-        theta:  Linear Regression Coefficient Vector (n x 1)
+        J:      Cost of a sample (single value)ß
+        theta:  Linear Regression Coefficient Vector (n+1 x 1)
         h:      Hypothesis of form: h(theta) = X @ theta
 
 TODO:
