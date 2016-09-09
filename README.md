@@ -7,15 +7,28 @@ https://www.coursera.org/specializations/machine-learning?utm_source=gg&utm_medi
 This is predomenantly intended to be a learning exercise. Not at upstaging existing and sophisticated machine learning libraries
 
 ### Notation Convention
+Summarized from: https://share.coursera.org/wiki/index.php/ML:Linear_Regression_with_Multiple_Variables
+
     n:      Number of features (excluding x0 feature)
     m:      Number of examples/samples
-    x:      Feature vector dataset (m x 1)
+    x:      Feature column vector dataset (m x 1)
     X:      Feature or Design Matrix (m x n+1)
     Xn:     Normalized Feature Matrix (m x n+1)
     y:      Target/Solution vector (m x 1)
     J:      Cost of a sample (single value)
-    theta:  Linear Regression Coefficient Vector (n+1 x 1)
-    h:      Hypothesis of form: h(theta) = X @ theta
+    theta:  Linear Regression Coefficient Vector (n+1 x 1) ==> theta0 + theta1*x1 + theta2*x2 ... + thetan*xn
+    h:      Hypothesis of form: h(X) = X @ theta
+                                h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
+
+Visual
+
+            ┌                  ┐
+            | 1   x1^1    xn^1 |
+    X ==>   | 1   x1^2    xn^2 |
+            |         ...      |
+            | 1   x1^m    xn^m |
+            └                  ┘
+
 
 ## Setup
 
