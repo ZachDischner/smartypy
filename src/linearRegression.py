@@ -18,7 +18,7 @@ Description:
     scripts developed for the Coursera Machine Learning course.
     Currently supports Python3.5 only. Main reason is to use the new 3.5 `@` infix
     matrix math operator. Otherwise `X.dot(theta)` gets pretty cumbersome.
-    Setup a new bare bones environment using conda or use teh accompanying environment.yml
+    Setup a new bare bones environment using conda or use the accompanying environment.yml
     to set up a compatible environment using:
         $ conda env create -f environment.yml
         $ source activate python35
