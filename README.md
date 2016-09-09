@@ -29,6 +29,45 @@ $ conda env create -f py-environment.yml
 Otherwise, if you don't have Anaconda, a working Python 3.5+ environment (yes, you need 3.5+) and a few ancilary modules is all you need. 
 
 ### Clone And Run
+Contact me for direct repo access, or Fork and create Pull Requests as needed. Any contributions and updates are welcome, this repo is definitely still in the early development stages. 
+```
+git clone git@github.com:ZachDischner/smartypy.git
+```
 
+### Examples
+In smartypy top level directory: `ipython`
+```
+import pandas as pd
+import numpy as np
+import smartypy
+
+## Read dataset
+df = pd.read_csv("test/data/ex1data2.txt",names=["area","rooms","price"])
+
+## Form X and y arrays
+y=df.price.values
+X=np.ones((len(y),3))
+X[:,1]=df.area.values
+X[:,2]=df.rooms.values
+
+## Normalize X 
+Xn,mu,sigma=smartypy.linearRegression.normalize_features(X)
+
+## Gradient Descent
+theta, Jhistory = smartypy.linearRegression.gradient_descent(Xn,y,[0,0,0],0.01)
+
+## Somewhat helpful plotting utilities
+```
+![3D Linear Regression Plot](http://i.imgur.com/LrzZcv5.png)
+
+
+You can also feel free to work directly in the src directory for easier relative imports.
+
+## Todo
+Never ending list. Top among them:
+
+* Testing cases with `pytest` 
+* Logistic Regression Functions
+* `numba.njit` optimizations
 
         
