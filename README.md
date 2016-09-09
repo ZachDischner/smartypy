@@ -58,9 +58,16 @@ theta, Jhistory = smartypy.linearRegression.gradient_descent(Xn,y,[0,0,0],0.01)
 
 ## Somewhat helpful plotting utilities
 ```
-![3D Linear Regression Plot](http://imgur.com/a/leyiU)
+![3D Linear Regression Plot](http://i.imgur.com/LrzZcv5.png)
+
 
 You can also feel free to work directly in the src directory for easier relative imports.
 
+## Todo
+Never ending list. Top among them:
+
+* Testing cases with `pytest` 
+* Logistic Regression Functions
+* `numba.njit` optimizations
 
         
