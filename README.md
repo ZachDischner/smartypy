@@ -7,6 +7,7 @@ https://www.coursera.org/specializations/machine-learning?utm_source=gg&utm_medi
 This is predomenantly intended to be a learning exercise. Not at upstaging existing and sophisticated machine learning libraries
 
 ### Notation Convention
+    x<sub>j</sub><sup>i</sup>  
     n:      Number of features (excluding x0 feature)
     m:      Number of examples/samples
     x:      Feature vector dataset (m x 1)
