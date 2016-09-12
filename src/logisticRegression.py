@@ -57,14 +57,13 @@ import sys
 import numpy as np
 import pandas as pd
 import pylab as plt
-from mpl_toolkits.mplot3d import axes3d
 from numba import jit, njit
 from sklearn.preprocessing import PolynomialFeatures
 from scipy.optimize import minimize
 
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
-_smarty_dir =  os.path.split(_here)     # Always .. from smarty files
+_smarty_dir =  os.path.split(_here)[0]     # Always .. from smarty files
 sys.path.insert(0, _here)
 import utils
 from linearRegression import normalize_features
@@ -168,15 +167,20 @@ def polymap(X, degree=6):
         X = np.array(X)
 
     add_offset_col = False
-    if False in (X[:,0]==1):
-        add_offset_col = True
+    ## If working with 1d array, don't bother with offset column? Used in plot_decision_boundary only)
+    if X.ndim > 1:
+        if False in (X[:,0]==1):
+            add_offset_col = True
+    else:
+        utils.printYellow("polymap should take a 2d array, even for single vectors: np.array([[1,2,3]]). Circumventing for you anyways")
+        return polymap(np.array([X]))
 
     poly = PolynomialFeatures(degree=degree,include_bias=add_offset_col)
     Xp   = poly.fit_transform(X)
 
     return Xp
 
-def solve(X,y,theta=None,poly_degree=6,lam=1):  
+def solve_regression(X,y,theta=None,poly_degree=6,lam=1):  
     """Solve a logistic regression problem represented by Design Matrix X and results y
     
     Prints a big red warning if minimization did not occur. Tries a few differnet methods. 
@@ -211,75 +215,181 @@ def solve(X,y,theta=None,poly_degree=6,lam=1):
         utils.printYellow("Minimization using 'TNC' failed! Trying 'BFGS' method")
         res = minimize(func, theta, method='BFGS', jac=True)
         if res.success is True:
-            utils.printGreen("Cost minimization using 'BFGS' method has succeeded with minimum cost {} for theta = {:.25}...".format(res.fun,(res.x)))
+            utils.printGreen("Cost minimization using 'BFGS' method has succeeded with minimum cost {} for theta = {:.25}...".format(res.fun,str(res.x)))
         else:
             utils.printRed("Logistic Regression cost minimization failed using two methods. Maybe try some others?")
 
     return res.fun, res.x
-    
 
+def predict(theta,X,poly_degree=1):
+    return sigmoid(polymap(X,degree=poly_degree) @ theta).round()
 
+def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_legend="Negative", decision_boundary=False, poly_degree=1):
+    """Simple. Assumes X has the theta0 feature in the 0th column already
 
-def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None,theta_hist=False):
-    """Perform gradient descent optimization to learn theta that creates the best fit
-    hypothesis h(theta)=X @ theta to the dataset
+    Plots `y` value (pos/neg) for features x1, x2. 
 
-    Args:
-        Xn:     Normalized Feature Matrix
-        y:      Target Vector
-        alpha:  (Real, >0) Learning Rate
-
-    Kwargs:
-        num_iters:  (Real) Maximum iterations to perform optimization
-        tol:        (Real) If provided, superscede num_iters, breaking optimization if tolerance cost is reached
-        theta_hist: (Bool) IF provided, also return theta's history
+    Optionally, adds decision boundary contour specified by `theta`, calculated against range of x feature values
+    mapped to higher order polynomial with order `poly_degree`
     """
+    fig = plt.figure()
+    plt.scatter(X[y==0,1], X[y==0,2], c='k', marker='+', linewidths=1.5, edgecolors='k', s=60, label=neg_legend)
+    plt.scatter(X[y==1,1], X[y==1,2], c='g', marker='o', linewidths=1.5, edgecolors='k', s=40, label=pos_legend)
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+
+    if decision_boundary:
+        if theta is None:
+            utils.printYellow("Must provide theta kwarg when trying to add decision boundary plot_data(X,y,theta=[],decision_boundary=True")
+        else:
+            ## Build decision boundary contour
+            xx = np.linspace(X[:,1].min(), X[:,1].max())
+            yy = np.linspace(X[:,2].min(), X[:,2].max())
+            zz = np.zeros((len(xx),len(yy)))
+
+            for ix in range(len(xx)):
+                for iy in range(len(yy)):
+                    #                                                       | Because of how polymap reshapes 1d arrays, must transpose before multiplying
+                    zz[ix,iy] = polymap([[1, xx[ix],yy[iy]]],degree=poly_degree) @ theta
     
-    # Check to see if Xn is normalized. Warn if not. 
-    if round(Xn[:,1].std()) != 1:
-        utils.printYellow("Gradient Descent X matrix is not normalized. Pass in normalized in the future to ensure convergence")
-        # Xn,_,_ = normalize_features(Xn)
+            c = plt.contour(xx,yy,zz,levels=[0])
+            c.collections[0].set_label('Decision Boundary')
+    plt.legend()
+    plt.show(block=False)
+    return fig
 
-    m = 1.0*len(y)
-    J_history =[]
-    theta_history = []
-    for idx in range(0,num_iters):
-        ## Compute new theta
-        theta = theta -  (alpha/m) * ((Xn @ theta - y).T @ Xn).T
-        theta_history.append(theta)
+def _test_unregularized():
+    ans = { "J_init":0.693147180559946, 
+            "Grad_init": [-0.100000, -12.009217, -11.262842],
+            "J_opt":0.203506,
+            "theta_opt":[ -24.932775,0.204406,0.199616],
+            "prob":0.774321,
+            "accuracy":89.00
+          }
+    print("\n\n==============================Begin Unregularized Logistic Regression Test============================\n")
+    ## Load data into dataframe
+    df = pd.read_csv(os.path.join(_smarty_dir,"test","data","ex2data1.txt"),names=["exam1","exam2","admitted"])
+    X = np.array(df.iloc[:,0:2])
+    y = np.array(df["admitted"])
 
-        ## Save new J cost
-        J_history.append(compute_cost(Xn,y,theta))
-        if (idx>1) and (tol is not None) and (J_history[-1]-J_history[-2] <= tol):
-            break
+    ## Prepend the theta0 column to X, form initial theta
+    X = np.insert(X, 0, 1, axis=1)
+    theta_init = np.zeros(X.shape[1])
 
-        ## Check to make sure J is decreasing...
-        if (idx > 1) and J_history[-2] <= J_history[-1]:
-            utils.printRed("Gradient Descent is not decreasing! Alpha: {}\t previous J {}\tJ {}. Try decreasing alpha".format(alpha,J_history[-2], J_history[-1]))
-    if theta_hist:
-        return theta, J_history, np.vstack(theta_history)
-    return theta, J_history
+    ## Plot
+    plot_data(X,y,xlabel="Exam 1 Score",ylabel="Exam 2 Score", pos_legend="Admitted",neg_legend="Not Admitted")
 
+    ## Compute unregularized cost and gradient
+    J = compute_cost(X,y,theta_init,lam=0)
+    grad = compute_gradient(X,y,theta_init,lam=0)
+    print("\n===Cost Function===")
+    print("\tCost at initial theta (zeros): {:.5}\t\t[MATLAB: {:.5}]".format(J, ans["J_init"]))
+    print("\tGrad at initial theta (zeros): {}\t\t[MATLAB: {}]\n".format(grad, ans["Grad_init"]))
+
+    ## Solution
+    J, theta = solve_regression(X,y,poly_degree=None,lam=0)
+    print("\n===Optimized Solution===")
+    print("\tCost at optimum theta: {:.5}\t\t[MATLAB: {:.5}]".format(J, ans["J_opt"]))
+    print("\tOptimum theta: {}\t\t[MATLAB: {}]".format(theta, ans["theta_opt"]))
+    plot_data(X,y,theta=theta,decision_boundary=True,poly_degree=1,xlabel="Exam 1 Score",ylabel="Exam 2 Score", pos_legend="Admitted",neg_legend="Not Admitted")
+
+    prob = sigmoid(np.array([1,45,85]) @ theta)
+    print("\tFor a student with scores 45 and 85, we predict an admission probability of {}\t\t[MATLAB: {}]".format(prob,ans["prob"]));
+
+    ## Accuracy
+    p = predict(theta,X)
+    training_accuracy = (p==y).mean()*100.0
+    print("\n===Training Accuracy===")
+    print("\tAccuracy: {}\t\t[MATLAB: {}]".format(training_accuracy, ans["accuracy"]))
+    plt.title("Training Accuracy = {:.5}".format(training_accuracy))
+
+    print("\n\n==============================End Unregularized Logistic Regression Test============================\n")
+    return X,y,J,theta,training_accuracy
+
+def _test_regularized(lam=1, poly_degree=6):
+    ###### Part 2: Regularization on more complex dataset
+    ans = { "J_init":0.693147180559946, 
+            "Grad_init": [0.008474576271186, 0.018788093220339, 0.000077771186441],
+            "J_opt":0.529002737482998,
+            "theta_opt":[1.272466148187809, 0.624959478618474, 1.180989312686644],
+            "accuracy":83.050847
+      }
+    ## Load data into dataframe
+    print("\n\n==============================Begin Regularized Logistic Regression Test============================\n")
+    utils.printBlue("Note, optimized solutions won't exactly match MATLAB's due to minimization algorithm differences and ")
+    df = pd.read_csv(os.path.join(_smarty_dir,"test","data","ex2data2.txt"),names=["Microchip Test 1","Microchip Test 2","PassFail"])
+    X = np.array(df.iloc[:,0:2])
+    y = np.array(df["PassFail"])
+
+    ## Prepend the theta0 column to X, form initial theta
+    X = np.insert(X, 0, 1, axis=1)
+    theta_init = np.zeros(X.shape[1])
+    
+    ## Plot
+    plot_data(X,y,xlabel="Microchip Test 1",ylabel="Microchip Test 2", pos_legend="Pass",neg_legend="Fail")
+    
+    ## Map and setup problem
+    Xp = polymap(X,degree=poly_degree)
+    theta_init = np.zeros(Xp.shape[1])
+
+    ## Compute regularized cost and gradient
+    J = compute_cost(Xp,y,theta_init,lam=lam)
+    grad = compute_gradient(Xp,y,theta_init,lam=lam)
+    print("\n===Cost Function===")
+    print("\tCost at initial theta (zeros): {:.5}\t\t[MATLAB: {:.5}]".format(J, ans["J_init"]))
+    print("\tGrad at initial theta (zeros)[0:3]: {}\t\t[MATLAB: {}]\n".format(grad[0:3], ans["Grad_init"]))
+
+    ## Solution
+    J, theta = solve_regression(X,y,poly_degree=poly_degree,lam=lam)
+    print("\n===Optimized Solution===")
+    print("\tCost at optimum theta: {:.5}\t\t[MATLAB: {:.5}]".format(J, ans["J_opt"]))
+    print("\tOptimum theta[0:3]: {}\t\t[MATLAB: {}]".format(theta[0:3], ans["theta_opt"]))
+    plot_data(X,y,theta=theta,decision_boundary=True,poly_degree=poly_degree,xlabel="Microchip Test 1",ylabel="Microchip Test 2", pos_legend="Pass",neg_legend="Fail")
+    ## Accuracy
+    p = predict(theta,Xp)
+    training_accuracy = (p==y).mean()*100.0
+    print("\n===Training Accuracy===")
+    print("\tAccuracy: {}\t\t[MATLAB: {}]".format(training_accuracy, ans["accuracy"]))
+
+    plt.title("Regularization lambda = {}, Poly order = {}\nAccuracy = {:.5}".format(lam,poly_degree,training_accuracy))
+
+    print("\n\n==============================End Regularized Logistic Regression Test============================\n")
+    return X,y,J,theta,training_accuracy
 
 def test():
-    """Comprehensive unit test would be nice. For now, just perform the same 
+    """Comprehensive unit test would be nice. For now, just perform the same test procedure as MATLAB logistRetressionTest
 
     """
     ## Maybe this! Save everything from MATLAB verified into mat file, read and compare
     # var = sio.loadmat("test/polyTrue.mat")
     # X = var['X'] >> loads into np array X! Neat!
 
-    ## Load data into dataframe
-    df = pd.read_csv("../test/data/ex2data1.txt",names=["test1","test2","passfail"])
-    X = np.array(df.iloc[:,0:2])
-    y = np.array(df["passfail"])
+    ###### Example Dataset 1: Simple Exams vs Admittance (Unregularized)
+    ## Define matlab solutions
+    unreg_res = _test_unregularized()
+    reg_res = _test_regularized()
 
-    ## Prepend the theta0 column to X
-    X = np.insert(X, 0, 1, axis=1)
 
-    theta = np.zeros(X.shape[1])
+    
 
-    ####### Solutions come from MATLAB
-    J_true = 0.693147180559946
-    return X, y, theta
+if __name__ == "__main__":
+    test()
+
+    ## Only for linux/mac, simple "press any key to continue" implemntation
+    print("Press Any Key to Exit")
+    os.system('read')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
