@@ -31,19 +31,21 @@ Nomenclature:
     Machine Learning course work. Outlined here so as to avoid repition in
     function definitions
 
-        n:      Number of features
-        m:      Number of examples/samples. (Includes x0 feature)
-        x:      Feature vector dataset (m x 1)
+        n:      Number of features (excluding x0 feature)
+        m:      Number of examples/samples
+        x:      Feature column vector dataset (m x 1)
         X:      Feature or Design Matrix (m x n+1)
         Xn:     Normalized Feature Matrix (m x n+1)
         y:      Target/Solution vector (m x 1)
         J:      Cost of a sample (single value)
-        theta:  Linear Regression Coefficient Vector (n+1 x 1)
-        h:      Hypothesis of form: h(theta) = X @ theta
+        theta:  Linear Regression Coefficient Vector (n+1 x 1) ==> theta0 + theta1*x1 + theta2*x2 ... + thetan*xn
+        h:      Hypothesis of form: h(X) = X @ theta
+                                    h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
 
 TODO:
     * Type/vector size error handling?
     * Optimizations, @njit,
+    * Regularization for cost function?
     * Unit tests!! *doctest for small functions? pytest for bigger ones
     * Add J(theta) contour plot
 
@@ -62,6 +64,7 @@ from numba import jit, njit
 
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
+_smarty_dir =  os.path.split(_here)   # Always .. from module files
 sys.path.insert(0, _here)
 import utils
 
@@ -70,6 +73,18 @@ import utils
 ##############################################################################
 #                                   Functions
 #----------*----------*----------*----------*----------*----------*----------*
+def hypothesize(X,theta):
+    """Hypothesize predicion y given dataset X and coefficient vector theta
+
+    Args:
+        X:      (ndarray Reals) Design Matrix 
+        theta:  (vector Reals) Coefficient Vector
+
+    Returns:
+        hypothesies:    (Real) y prediction
+    """
+    return X @ theta 
+
 def compute_cost(X,y,theta):
     """Compute cost of hypothesized `theta` against test dataset X and solutions y
 
@@ -78,15 +93,15 @@ def compute_cost(X,y,theta):
         hypothesis and dataset divided by twice the number of examples.
 
     Args:
-        X:      <official name?>(ndarray Reals)
-        y:      <official name?>(vector Reals)
-        theta:  <official name?>(vector Reals)
+        X:      (ndarray Reals) Design Matrix 
+        y:      (vector Reals) Solution vector
+        theta:  (vector Reals) Coefficient Vector
 
     Returns:
         J:  (Real) Cost of hypothesis
     """
     m = len(y)
-    hypothesis = X @ theta
+    hypothesis = hypothesize(X,theta)
     error = (hypothesis - y)**2.0
     J = (1.0/2.0/m) * sum(error)
     return J
