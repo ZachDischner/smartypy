@@ -64,7 +64,7 @@ from numba import jit, njit
 
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
-_smarty_dir =  os.path.split(_here)   # Always .. from module files
+_smarty_dir =  os.path.split(_here)[0]   # Always .. from module files
 sys.path.insert(0, _here)
 import utils
 
