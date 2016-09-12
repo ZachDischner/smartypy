@@ -42,6 +42,19 @@ Nomenclature:
         h:      Hypothesis of form: h(X) = X @ theta
                                     h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
 
+Examples:
+    See _test_unregularized() and _test_regularized() for good demonstration of utilities. 
+
+    You can experiment with poly order and lambda regularization parameter on sample datasets to get the 
+    best fit to our dataset
+
+    ## Run agains test dataset
+    X,y,J,theta,training_accuracy = _test_regularized(lam=0.1, poly_degree=2)
+
+    ## Obtain a guess for new sample in same dataset
+    passfail = predict(theta, np.array([[1,3,0]]),poly_degree=2)
+        0 
+
 TODO:
     * Type/vector size error handling?
     * Optimizations, @njit,
@@ -221,8 +234,18 @@ def solve_regression(X,y,theta=None,poly_degree=6,lam=1):
 
     return res.fun, res.x
 
-def predict(theta,X,poly_degree=1):
-    return sigmoid(polymap(X,degree=poly_degree) @ theta).round()
+def predict(theta,sample,poly_degree=1):
+    """Predict solution of sample using a determined theta. 
+
+    Args:
+        sample:     (vector Real) Vector of feature samples. I.E. a supposed row of X
+
+    kwargs: 
+        poly_degree: (Real) poly_degree=1 means no higher order polynomial terms used. 
+                        MUST provide the same poly_degree as you used to calculate theta!!!
+
+    """
+    return sigmoid(polymap(sample,degree=poly_degree) @ theta).round()
 
 def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_legend="Negative", decision_boundary=False, poly_degree=1):
     """Simple. Assumes X has the theta0 feature in the 0th column already
@@ -233,8 +256,8 @@ def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_le
     mapped to higher order polynomial with order `poly_degree`
     """
     fig = plt.figure()
-    plt.scatter(X[y==0,1], X[y==0,2], c='k', marker='+', linewidths=1.5, edgecolors='k', s=60, label=neg_legend)
-    plt.scatter(X[y==1,1], X[y==1,2], c='g', marker='o', linewidths=1.5, edgecolors='k', s=40, label=pos_legend)
+    plt.scatter(X[y==0,1], X[y==0,2], c='k', marker='x', linewidths=1.5, edgecolors='k', s=60, label=neg_legend)
+    plt.scatter(X[y==1,1], X[y==1,2], c='g', marker='+', linewidths=1.5, edgecolors='k', s=40, label=pos_legend)
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
 

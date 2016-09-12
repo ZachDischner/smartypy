@@ -43,6 +43,7 @@ Nomenclature:
                                     h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
 
 TODO:
+    * Duplicate MATLAB test script in here. See logisticRegression.py ==> test() methods
     * Type/vector size error handling?
     * Optimizations, @njit,
     * Regularization for cost function?

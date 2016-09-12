@@ -48,6 +48,7 @@ git clone git@github.com:ZachDischner/smartypy.git
 ```
 
 ### Examples
+#### Linear Regression
 In smartypy top level directory: `ipython`
 ```
 import pandas as pd
@@ -73,7 +74,50 @@ theta, Jhistory = smartypy.linearRegression.gradient_descent(Xn,y,[0,0,0],0.01)
 ```
 ![3D Linear Regression Plot](http://i.imgur.com/LrzZcv5.png)
 
+#### Logistic Regression
+* Run `logisticRegression.py` for a demonstration of logistic fitting
+* From `logisticRegression._test_regularized()`:
+```
+import pandas as pd
+import numpy as np
+from smartypy import logisticRegression 
 
+## Regularization and Polynomial Mapping Degree
+lam = 1.0
+poly_degree = 6
+df = pd.read_csv("test/data/ex2data2.txt",names=["Microchip Test 1","Microchip Test 2","PassFail"])
+X = np.array(df.iloc[:,0:2])
+y = np.array(df["PassFail"])
+
+## Prepend the theta0 column to X, form initial theta
+X = np.insert(X, 0, 1, axis=1)
+theta_init = np.zeros(X.shape[1])
+
+## Plot
+logisticRegression.plot_data(X,y,xlabel="Microchip Test 1",ylabel="Microchip Test 2", pos_legend="Pass",neg_legend="Fail")
+
+## Map and setup problem
+Xp = logisticRegression.polymap(X,degree=poly_degree)
+theta_init = np.zeros(Xp.shape[1])
+
+## Compute regularized cost and gradient
+J = logisticRegression.compute_cost(Xp,y,theta_init,lam=lam)
+grad = logisticRegression.compute_gradient(Xp,y,theta_init,lam=lam)
+
+## Solution
+# Attempts a minimization of the logistic regression cost function using 
+#   a few methods from the scipy.optimize library
+J, theta = logisticRegression.solve_regression(X,y,poly_degree=poly_degree,lam=lam)
+logisticRegression.plot_data(X,y,theta=theta,decision_boundary=True,poly_degree=poly_degree,xlabel="Microchip Test 1",ylabel="Microchip Test 2", pos_legend="Pass",neg_legend="Fail")
+
+## Predict pass fail on new sample
+passfail = logisticRegression.predict(theta, [1,3,0],poly_degree=6)
+# >> 0   This definitely falls outside the pass failure area
+
+p = logisticRegression.predict(theta,Xp)
+training_accuracy = (p==y).mean()*100.0
+```
+![2D Decision Boundary Plot](http://i.imgur.com/CquuS0X.png)
 You can also feel free to work directly in the src directory for easier relative imports.
 
 ## Todo
