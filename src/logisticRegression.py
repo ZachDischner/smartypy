@@ -56,6 +56,7 @@ Examples:
         0 
 
 TODO:
+    * Consolodate functionality into Class to keep track of setup, facilitate multi-class classification
     * Type/vector size error handling?
     * Optimizations, @njit,
     * Unit tests!! *doctest for small functions? pytest for bigger ones
