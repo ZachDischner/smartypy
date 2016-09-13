@@ -11,7 +11,7 @@
 %
 %     sigmoid.m
 %     costFunction.m
-%     predict.m
+%     predictLogReg.m
 %     costFunctionReg.m
 %
 %  For this exercise, you will not need to change any code in this file,
@@ -124,7 +124,7 @@ pause;
 %  Furthermore, you will compute the training and test set accuracies of 
 %  our model.
 %
-%  Your task is to complete the code in predict.m
+%  Your task is to complete the code in predictLogReg.m
 
 %  Predict probability for a student with score 45 on exam 1 
 %  and score 85 on exam 2 
@@ -134,7 +134,7 @@ fprintf(['For a student with scores 45 and 85, we predict an admission ' ...
          'probability of %f,   TRUE = ~0.776\n\n'], prob);
 
 % Compute accuracy on our training set
-p = predict(theta, X);
+p = predictLogReg(theta, X);
 
 fprintf('Train Accuracy: %f\n', mean(double(p == y)) * 100);
 
@@ -227,7 +227,7 @@ legend('y = 1', 'y = 0', 'Decision boundary')
 hold off;
 
 % Compute accuracy on our training set
-p = predict(theta, X);
+p = predictLogReg(theta, X);
 
 fprintf('Train Accuracy: %f\n', mean(double(p == y)) * 100);
 
