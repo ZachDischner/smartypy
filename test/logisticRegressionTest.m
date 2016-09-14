@@ -11,7 +11,7 @@
 %
 %     sigmoid.m
 %     costFunction.m
-%     predictLogReg.m
+%     p.m
 %     costFunctionReg.m
 %
 %  For this exercise, you will not need to change any code in this file,

@@ -24,7 +24,9 @@ Description:
         $ source activate python35
 
 Note:
-    Error checking, vector sizes, etc are omitted for the time being.
+    Error checking, vector sizes, etc are omitted for the time being. I also keep flip flopping between
+    being clever and pythonic, or just keeping it simple (coming from Matlab/Octave) and doing everything
+    through straight indexing. Neither sits particularly well :-\
 
 Nomenclature:
     Variables and nomenclature follows the same convention as specified in
@@ -56,10 +58,12 @@ Examples:
         0 
 
 TODO:
-    * Consolodate functionality into Class to keep track of setup, facilitate multi-class classification
+    * Consolodate functionality into Class to keep track of setup, facilitate multi-class classification?
+    * Smarter train_regression() function, auto pick regression cost minimization method?
     * Type/vector size error handling?
     * Optimizations, @njit,
     * Unit tests!! *doctest for small functions? pytest for bigger ones
+    * I wonder if things get clear with dataframes? I.E. df=pd.DataFrame(X) is a bit easier at seeing and applying rows/columns
 
     """
 
@@ -71,9 +75,10 @@ import sys
 import numpy as np
 import pandas as pd
 import pylab as plt
+import scipy.io as sio
 from numba import jit, njit
 from sklearn.preprocessing import PolynomialFeatures
-from scipy.optimize import minimize
+from scipy.optimize import minimize, fmin_cg
 
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
@@ -90,6 +95,7 @@ np.set_printoptions(precision=5)
 ##############################################################################
 #                                   Functions
 #----------*----------*----------*----------*----------*----------*----------*
+@njit
 def sigmoid(z):
     """ Compute sigmoid function on z. 
 
@@ -99,6 +105,7 @@ def sigmoid(z):
     """
     return 1/(1+np.exp(-z))
 
+@njit
 def hypothesize(X,theta):
     """Hypothesize predicion y given dataset X and coefficient vector theta
 
@@ -111,6 +118,13 @@ def hypothesize(X,theta):
     """
     return sigmoid(X @ theta) 
 
+def _mult(a,b):
+    ans = np.zeros_like(a)
+    for ix in range(a):
+        ans[ix] = a[ix]*b[ix]
+    return ans
+
+# jit dectoration speeds up nothing. 
 def compute_cost(X,y,theta,lam=1.0):
     """Compute cost of hypothesized `theta` against test dataset X and solutions y
 
@@ -133,39 +147,78 @@ def compute_cost(X,y,theta,lam=1.0):
         J:      (Real) Cost of hypothesis
         grad:   ([m x 1] vector Reals) Gradient of J wrt thet. [d(J)/d(theta_j)]
     """
+    ## This is tricksy and a little dumb IMO. If y is (5000x1), it takes 500x longer to 
+    # do the calculations below. So convert it to a (5000,) vector...
+    if y.ndim > 1:
+        print("Cost calculation with multi dimensional is dramatically slower than with a 1d vector! You should use y=y[:,0] for speed...")
+        max_idx = y.shape.index(max(y.shape))
+        if max_idx == 0:
+            y = y[:,0]
+        else:
+           y = y[0,:] 
+
     m = len(y)
     n = len(theta)
     hypothesis = hypothesize(X,theta)
     
-    ## Cost function
-    #                                                                       |retularization      | This part subustitute the theta0 term with zero in the theta array since it does not get regularized
-    J = (1.0/m) * sum(-y*np.log(hypothesis) - (1-y)*(np.log(1-hypothesis))) + (lam/2.0/m)*sum(np.insert(theta[1:],0,0)**2);
+    # This part subustitute the theta0 term with zero in the theta array since it does not get regularized
+    tmp = theta[0]
+    theta[0] = 0.0
 
+    ## Cost function
+    #                |THIS, -y is different than -1.0*y if y happens to be uint           |regularization
+    # J = (1.0/m) * ((-1.0*y).dot(np.log(hypothesis)) - (1-y).dot(np.log(1-hypothesis))) + (lam/2.0/m)*sum(theta**2.0)
+    J = (1.0/m) * sum((-1.0)*y*np.log(hypothesis) - (1-y)*np.log(1-hypothesis)) + (lam/2.0/m)*sum(theta**2.0)
+    
+    ## Put original theta value back. Referenced theta in the calling function would be altered otherwise
+    theta[0] = tmp
     return J
+
 
 def compute_gradient(X,y,theta,lam=1.0):
     """Compute Regularized gradient of cost function. See compute_cost for argument details"""
     ## Gradient of cost function
+    if y.ndim > 1:
+        print("Cost calculation with multi dimensional is dramatically slower than with a 1d vector! You should use y=y[:,0] for speed...")
+        max_idx = y.shape.index(max(y.shape))
+        if max_idx == 0:
+            y = y[:,0]
+        else:
+            y = y[0,:] 
+
     m = len(y)
     n = len(theta)
     hypothesis = hypothesize(X,theta)
-    grad = []
-    for jj in range(n):
-        grad.append( (1.0/m) * sum((hypothesis - y)*X[:,jj]))
+    # grad = []
+    # for jj in range(n):
+    #     grad.append( (1.0/m) * sum((hypothesis - y)*X[:,jj]))
+
+    # This part subustitute the theta0 term with zero in the theta array since it does not get regularized
+    tmp = theta[0]
+    theta[0] = 0
 
     ## Regularization bit. 
     #                            | This part subustitute the theta0 term with zero in the theta array since it does not get regularized
-    grad += (lam/m) * np.insert(theta[1:],0,0)
-
+    # grad += (lam/m) * np.insert(theta[1:],0,0)
+    grad = (1.0/m) * X.T @ (hypothesis - y) + (lam/m) * theta;
+    
+    ## Put original theta value back. Referenced theta in the calling function would be altered otherwise
+    theta[0] = tmp
+    
     return grad
 
 
-def polymap(X, degree=6):
+def polymap(X, degree=1):
     """Using pro library:
     http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html
 
-    Adds offest column (1) if it doesn't exist. Only works for adding polynomial features to design matrices X
-    with 2 independant features.
+    Adds offest column (1) if it doesn't exist. 
+
+    Note that if X does not have the (x0) offset column, polymap(X,degree=1) will return X with that
+    offset column added. if X does have the (x0) offset column, polymap(X,degree=1) will return the 
+    exact same matrix.
+
+    If degree is None, X is returned as is, no matter what. 
 
     Given Design Matrix X = [[x0],[x1],[x2]], This creates new design matrix with all polynomial terms
     up to the `order`th power:
@@ -177,6 +230,9 @@ def polymap(X, degree=6):
            [  1.,   2.,   5.,   4.,  10.,  25.],
            [  1.,   3.,   6.,   9.,  18.,  36.]])
     """
+    if degree is None:
+        return X
+
     if not isinstance(X,np.ndarray):
         X = np.array(X)
 
@@ -186,7 +242,7 @@ def polymap(X, degree=6):
         if False in (X[:,0]==1):
             add_offset_col = True
     else:
-        utils.printYellow("polymap should take a 2d array, even for single vectors: np.array([[1,2,3]]). Circumventing for you anyways")
+        # utils.printYellow("polymap should take a 2d array, even for single vectors: np.array([[1,2,3]]). Circumventing for you anyways")
         return polymap(np.array([X]))
 
     poly = PolynomialFeatures(degree=degree,include_bias=add_offset_col)
@@ -194,8 +250,8 @@ def polymap(X, degree=6):
 
     return Xp
 
-def solve_regression(X,y,theta=None,poly_degree=6,lam=1):  
-    """Solve a logistic regression problem represented by Design Matrix X and results y
+def train_regression(X,y,theta=None, poly_degree=1,lam=1):  
+    """Train a logistic regression problem represented by Design Matrix X and results y
     
     Prints a big red warning if minimization did not occur. Tries a few differnet methods. 
 
@@ -203,50 +259,118 @@ def solve_regression(X,y,theta=None,poly_degree=6,lam=1):
 
     Returns:
         cost:   (real) Cost at minimized value of theta
-        theta:  (array reals) theta vector which minimizes cost function
+        theta:  (array reals) theta vector which minimizes cost function for the design matrix X matching to
+                solution set y. 
     """
-    if poly_degree is not None:
-        X = polymap(X, degree=poly_degree)
 
+    ## Poly map the design matrix
+    X = polymap(X, degree=poly_degree)
+    
     if theta is None:
         theta = np.zeros(X.shape[1])
 
-    print("Solving for minimum-cost theta using initial conditions theta = {:.15}...\nAnd order {} polynomial mapped X matrix".format(str(theta),poly_degree))
+    print("Solving for minimum-cost theta using initial conditions theta = {:.15}...\n\tAnd order {} polynomial mapped X matrix".format(str(theta),poly_degree))
     
     ## Simple wrapper function to make the call to get J,cost a function with just one input.
     # I think it is cleaner than mucking up the call to minimization functions with Kwargs and whatnot
-    def func(theta):
-        return compute_cost(X,y,theta,lam=lam),compute_gradient(X,y,theta,lam=lam)
-
+    def grad(theta):
+        return compute_gradient(X,y,theta,lam=lam)
+    def cost(theta):
+        return compute_cost(X,y,theta,lam=lam)
+    def cost_and_grad(theta):
+        return cost(theta),grad(theta)
     
-    ## The 'Truncated Newton' TNC method seems to work best for minmimization
-    res = minimize(func, theta, method='TNC', jac=True)
+    # return X,y,theta,cost,grad,cost_and_grad
+    ## The 'Truncated Newton' TNC method seems to work well for minmimization
+    res = minimize(cost_and_grad, theta, method='TNC', jac=True)
 
     if res.success is True:
         utils.printGreen("Cost minimization using 'TNC' method has succeeded with minimum cost {:.5} for theta = {:.35}...".format(res.fun,str(res.x)))
         return res.fun, res.x
     else:
         utils.printYellow("Minimization using 'TNC' failed! Trying 'BFGS' method")
-        res = minimize(func, theta, method='BFGS', jac=True)
+        res = minimize(cost_and_grad, theta, method='BFGS', jac=True)
         if res.success is True:
             utils.printGreen("Cost minimization using 'BFGS' method has succeeded with minimum cost {} for theta = {:.25}...".format(res.fun,str(res.x)))
         else:
             utils.printRed("Logistic Regression cost minimization failed using two methods. Maybe try some others?")
+            res = fmin_cg()
+    ## For explicitness
+    cost = res.fun
+    theta = res.x
+    return cost, theta
 
-    return res.fun, res.x
 
-def predict(theta,sample,poly_degree=1):
+def predict(theta,sample,poly_degree=1,return_prob=False):
     """Predict solution of sample using a determined theta. 
 
     Args:
         sample:     (vector Real) Vector of feature samples. I.E. a supposed row of X
+        theta:      (Vector Real) Vector of trained fit coeficients
 
     kwargs: 
         poly_degree: (Real) poly_degree=1 means no higher order polynomial terms used. 
                         MUST provide the same poly_degree as you used to calculate theta!!!
+        return_prob: (Bool) Return the probability that the sample belongs to the same solution 
+                        set as theta describes
 
+    Returns:
+        match:  (Real) Indicator of a match. Either 0 or 1 if return_prob is False, otherwise
+                    it is a floating point number between 0 and 1 (sigmoid...)
     """
-    return sigmoid(polymap(sample,degree=poly_degree) @ theta).round()
+    # If theta was computed with a polymapped design matrix, the sample must be mapped in the same fashion
+    polymapped_sample = polymap(sample,degree=poly_degree)
+    match_indicator = sigmoid( polymapped_sample @ theta)
+    if return_prob:
+        match = match_indicator
+    else:
+        match = match_indicator.round()
+    return match
+
+def train_multi_classification(X,y,lam,classifications=None,poly_degree=None):
+    """Trains multiple logistic regression classifiers and returns all classifiers in 
+    a matrix (thetas) where the i-th row corresponds to the the theta that predicts
+    the i-th classification. 
+
+    Maybe return dataframe? 
+
+    Args:
+        X:  (Real matrix) Design matrix (with or without offset term x0)
+        y:  (Real vector) Training solutions per sample (row) of X
+    
+    Kwargs:
+        classifications:    (Real list) Unique solutions that X could represent. If not 
+                            provided, form out of unique y solutions
+        lam:                (Real) Lambda regularization parameter (0 for unregularized)
+    
+    Returns:
+        classifiers: (dict)
+    """
+    
+    ## Add offset x0 column if it isn't there
+    if not (X[:,0].mean == 1 and X[:,].std() == 0):
+        X = np.insert(X, 0, 1, axis=1)
+
+    ## Get different classifications if they aren't provided
+    if classifications is None:
+        classifications = np.unique(y)
+
+    classifications.sort()      # Seems like an overall good idea?
+    m,n = X.shape
+    
+    classifiers = {}
+    for classification in classifications:
+        #                                | one-versus-all, 1 for a positive match, 0 for all others
+        cost, theta = train_regression(X,y==classification, poly_degree=poly_degree, lam=lam)
+        classifiers[classification] = theta
+
+    return classifiers
+
+
+
+#--------------------------------------------------------------------------------
+#------------ Not portable or general purpose test specific functions -----------
+#--------------------------------------------------------------------------------
 
 def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_legend="Negative", decision_boundary=False, poly_degree=1):
     """Simple. Assumes X has the theta0 feature in the 0th column already
@@ -282,7 +406,46 @@ def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_le
     plt.show(block=False)
     return fig
 
+def displayData(X):
+    """Taken unabashedly from https://github.com/royshoo/mlsn/blob/master/python/courseraEx03.py
+
+    I really don't like how much time I waste on fiddling with plots and whatnot. Best to take someone 
+    else's and focus on the real stuff.
+    """
+    # python translation of displayData.m from coursera
+    # For now, only "quadratic" image
+    example_width = np.round(np.sqrt(X.shape[1]))
+    example_height = example_width
+    
+    display_rows = np.floor(np.sqrt(X.shape[0]))
+    display_cols = np.ceil(X.shape[0]/display_rows)
+
+    pad = 1
+
+    display_array = -np.ones((pad+display_rows*(example_height+pad), pad+display_cols*(example_width+pad)))
+
+    curr_ex = 0
+
+    for j in range(display_rows.astype(np.int16)):
+        for i in range(display_cols.astype(np.int16)):
+            if curr_ex == X.shape[0]:
+                break
+            max_val = np.max(np.abs(X[curr_ex,:]))
+            rowStart = pad+j*(example_height+pad)
+            colStart = pad+i*(example_width+pad)
+            display_array[rowStart:rowStart+example_height, colStart:colStart+example_width] = X[curr_ex,:].reshape((example_height,example_width)).T/max_val
+
+            curr_ex += 1
+        if curr_ex == X.shape[0]:
+            break
+
+    plt.imshow(display_array,extent = [0,10,0,10],cmap = plt.cm.Greys_r)
+    plt.show()
+
 def _test_unregularized():
+    """Test function matches behavior and values as in (coursera submitted and verified)
+    logisticRegressionTest.m script in the `_smarty_dir`/test directory, part 1
+    """
     ans = { "J_init":0.693147180559946, 
             "Grad_init": [-0.100000, -12.009217, -11.262842],
             "J_opt":0.203506,
@@ -311,11 +474,12 @@ def _test_unregularized():
     print("\tGrad at initial theta (zeros): {}\t\t[MATLAB: {}]\n".format(grad, ans["Grad_init"]))
 
     ## Solution
-    J, theta = solve_regression(X,y,poly_degree=None,lam=0)
+    J, theta = train_regression(X,y,poly_degree=None,lam=0)
     print("\n===Optimized Solution===")
     print("\tCost at optimum theta: {:.5}\t\t[MATLAB: {:.5}]".format(J, ans["J_opt"]))
     print("\tOptimum theta: {}\t\t[MATLAB: {}]".format(theta, ans["theta_opt"]))
-    plot_data(X,y,theta=theta,decision_boundary=True,poly_degree=1,xlabel="Exam 1 Score",ylabel="Exam 2 Score", pos_legend="Admitted",neg_legend="Not Admitted")
+
+    plot_data(X,y,theta=theta,decision_boundary=True,poly_degree=None,xlabel="Exam 1 Score",ylabel="Exam 2 Score", pos_legend="Admitted",neg_legend="Not Admitted")
 
     prob = sigmoid(np.array([1,45,85]) @ theta)
     print("\tFor a student with scores 45 and 85, we predict an admission probability of {}\t\t[MATLAB: {}]".format(prob,ans["prob"]));
@@ -331,6 +495,9 @@ def _test_unregularized():
     return X,y,J,theta,training_accuracy
 
 def _test_regularized(lam=1, poly_degree=6):
+    """Test function matches behavior and values as in (coursera submitted and verified)
+    logisticRegressionTest.m script in the `_smarty_dir`/test directory, part 2
+    """
     ###### Part 2: Regularization on more complex dataset
     ans = { "J_init":0.693147180559946, 
             "Grad_init": [0.008474576271186, 0.018788093220339, 0.000077771186441],
@@ -364,7 +531,7 @@ def _test_regularized(lam=1, poly_degree=6):
     print("\tGrad at initial theta (zeros)[0:3]: {}\t\t[MATLAB: {}]\n".format(grad[0:3], ans["Grad_init"]))
 
     ## Solution
-    J, theta = solve_regression(X,y,poly_degree=poly_degree,lam=lam)
+    J, theta = train_regression(X,y,poly_degree=poly_degree,lam=lam)
     print("\n===Optimized Solution===")
     print("\tCost at optimum theta: {:.5}\t\t[MATLAB: {:.5}]".format(J, ans["J_opt"]))
     print("\tOptimum theta[0:3]: {}\t\t[MATLAB: {}]".format(theta[0:3], ans["theta_opt"]))
@@ -380,6 +547,36 @@ def _test_regularized(lam=1, poly_degree=6):
     print("\n\n==============================End Regularized Logistic Regression Test============================\n")
     return X,y,J,theta,training_accuracy
 
+def _test_multi(lam=1.0):
+    """Test function matches behavior and values as in (coursera submitted and verified)
+    multiLogisticRegressionTest.m script in the `_smarty_dir`/test directory
+    """
+    print("\n\n===============Begin Regularized Multi Classification Logistic Regression Test====================\n")
+
+    ###### Load dataset
+    mat = sio.loadmat(os.path.join(_smarty_dir,"test","data","ex3data1.mat"))
+    X = mat['X']
+    y = mat['y'][:,0].astype('int16') # Don't want to make this a 2d array...
+
+    # This is Python! 0 indexed! Data was provided so that '0' in the image was actually 10 in the result set
+    # so that we could do some easier syntactic stuff in Matlab. No need here!
+    y[y==10] = 0  
+
+    ## Some problem definitions
+    input_layer_size = 400    # 20x20 images
+    num_classifications = 10  # classify images as 0-9
+    m,n = X.shape
+    theta_init = np.zeros(n)
+
+    ## Display some images
+    rand_indices = np.random.permutation(m)
+    sel = X[rand_indices[0:100],:]
+    plt.figure()
+    displayData(sel)
+    return X,y,theta_init
+
+    print("\n\n================End Regularized Multi Classification Logistic Regression Test=====s================\n")
+
 def test():
     """Comprehensive unit test would be nice. For now, just perform the same test procedure as MATLAB logistRetressionTest
 
@@ -392,6 +589,7 @@ def test():
     ## Define matlab solutions
     unreg_res = _test_unregularized()
     reg_res = _test_regularized()
+    multi_res = _test_multi()
 
 
     

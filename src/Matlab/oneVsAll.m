@@ -54,7 +54,7 @@ X = [ones(m, 1) X];
 options = optimset('GradObj', 'on', 'MaxIter', 50);
 
 % Nifty, about twice as fast. 
-parfor ii = 1:num_labels
+for ii = 1:num_labels
     % explicity, c = the classification we are trying to identify
     c = ii; % luckily, the indices ii match up to the numbers we're trying to classify. 
     initial_theta = zeros(n + 1, 1);
