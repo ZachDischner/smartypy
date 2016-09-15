@@ -27,6 +27,7 @@ from datetime import datetime
 
 ###### Module variables
 _here               = os.path.dirname(os.path.realpath(__file__))
+_VERSION = "0.0.0"
 
 ## Colors!!!
 class bcolors:

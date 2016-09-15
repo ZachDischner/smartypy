@@ -53,7 +53,7 @@ In smartypy top level directory: `ipython`
 ```
 import pandas as pd
 import numpy as np
-import smartypy
+import smartypy.linearRegression
 
 ## Read dataset
 df = pd.read_csv("test/data/ex1data2.txt",names=["area","rooms","price"])
@@ -107,14 +107,14 @@ grad = logisticRegression.compute_gradient(Xp,y,theta_init,lam=lam)
 ## Solution
 # Attempts a minimization of the logistic regression cost function using 
 #   a few methods from the scipy.optimize library
-J, theta = logisticRegression.solve_regression(X,y,poly_degree=poly_degree,lam=lam)
+J, theta = logisticRegression.train_regression(X,y,poly_degree=poly_degree,lam=lam)
 logisticRegression.plot_data(X,y,theta=theta,decision_boundary=True,poly_degree=poly_degree,xlabel="Microchip Test 1",ylabel="Microchip Test 2", pos_legend="Pass",neg_legend="Fail")
 
 ## Predict pass fail on new sample
-passfail = logisticRegression.predict(theta, [1,3,0],poly_degree=6)
+passfail = logisticRegression.predict_sample(theta, [1,3,0],poly_degree=6)
 # >> 0   This definitely falls outside the pass failure area
 
-p = logisticRegression.predict(theta,Xp)
+p = logisticRegression.predict_sample(theta,Xp)
 training_accuracy = (p==y).mean()*100.0
 ```
 ![2D Decision Boundary Plot](http://i.imgur.com/CquuS0X.png)

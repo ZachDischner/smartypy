@@ -25,13 +25,14 @@ setup(
     install_requires=[
         "numpy",
         "numba>=0.25",
-        "matplotlib"
+        "matplotlib",
+        "pandas"
     ],
     tests_require=[
         #"pytest"
     ],
-    packages=find_packages('src'),
-    package_dir={'': 'src'},
+    packages=find_packages('smartypy'),
+    package_dir={'': 'smartypy'},
     entry_points={
       'console_scripts': [
           'smartypy = smartypy.cli:main'
@@ -49,7 +50,5 @@ setup(
       "Topic :: Scientific/Engineering",
     ],
     long_description=io.open('README.md', encoding='utf-8').read(),
-    package_data={"poliastro": ['tests/*.py']},
-    include_package_data=True,
     zip_safe=False,
 )

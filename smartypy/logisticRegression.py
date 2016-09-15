@@ -84,10 +84,8 @@ from scipy.optimize import minimize, fmin_cg
 
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
-_smarty_dir =  os.path.split(_here)[0]     # Always .. from smarty files
-sys.path.insert(0, _here)
-import utils
-from linearRegression import normalize_features
+from smartypy import utils, _SMARTY_DIR
+from smartypy.linearRegression import normalize_features
 
 ###### Module variables
 
@@ -519,7 +517,7 @@ def displayData(X):
 
 def _test_unregularized():
     """Test function matches behavior and values as in (coursera submitted and verified)
-    logisticRegressionTest.m script in the `_smarty_dir`/test directory, part 1
+    logisticRegressionTest.m script in the `_SMARTY_DIR`/test directory, part 1
     """
     ans = { "J_init":0.693147180559946, 
             "Grad_init": [-0.100000, -12.009217, -11.262842],
@@ -530,7 +528,7 @@ def _test_unregularized():
           }
     print("\n\n==============================Begin Unregularized Logistic Regression Test============================\n")
     ## Load data into dataframe
-    df = pd.read_csv(os.path.join(_smarty_dir,"test","data","ex2data1.txt"),names=["exam1","exam2","admitted"])
+    df = pd.read_csv(os.path.join(_SMARTY_DIR,"test","data","ex2data1.txt"),names=["exam1","exam2","admitted"])
     X = np.array(df.iloc[:,0:2])
     y = np.array(df["admitted"])
 
@@ -571,7 +569,7 @@ def _test_unregularized():
 
 def _test_regularized(lam=1, poly_degree=6):
     """Test function matches behavior and values as in (coursera submitted and verified)
-    logisticRegressionTest.m script in the `_smarty_dir`/test directory, part 2
+    logisticRegressionTest.m script in the `_SMARTY_DIR`/test directory, part 2
     """
     ###### Part 2: Regularization on more complex dataset
     ans = { "J_init":0.693147180559946, 
@@ -583,7 +581,7 @@ def _test_regularized(lam=1, poly_degree=6):
     ## Load data into dataframe
     print("\n\n==============================Begin Regularized Logistic Regression Test============================\n")
     utils.printBlue("Note, optimized solutions won't exactly match MATLAB's due to minimization algorithm differences and ")
-    df = pd.read_csv(os.path.join(_smarty_dir,"test","data","ex2data2.txt"),names=["Microchip Test 1","Microchip Test 2","PassFail"])
+    df = pd.read_csv(os.path.join(_SMARTY_DIR,"test","data","ex2data2.txt"),names=["Microchip Test 1","Microchip Test 2","PassFail"])
     X = np.array(df.iloc[:,0:2])
     y = np.array(df["PassFail"])
 
@@ -624,12 +622,12 @@ def _test_regularized(lam=1, poly_degree=6):
 
 def _test_multi(lam=1.0):
     """Test function matches behavior and values as in (coursera submitted and verified)
-    multiLogisticRegressionTest.m script in the `_smarty_dir`/test directory
+    multiLogisticRegressionTest.m script in the `_SMARTY_DIR`/test directory
     """
     print("\n\n===============Begin Regularized Multi Classification Logistic Regression Test====================\n")
 
     ###### Load dataset
-    dataset = os.path.join(_smarty_dir,"test","data","ex3data1.mat")
+    dataset = os.path.join(_SMARTY_DIR,"test","data","ex3data1.mat")
     if os.path.exists(dataset):
         mat = sio.loadmat(dataset)
     else:
@@ -676,7 +674,7 @@ def _test_BinaryClassifier():
     """Quick functional test and usage demo"""
     print("\n\n==============================Begin BinaryClassification Class Test============================\n")
 
-    df = pd.read_csv(os.path.join(_smarty_dir,"test","data","ex2data1.txt"),names=["exam1","exam2","admitted"])
+    df = pd.read_csv(os.path.join(_SMARTY_DIR,"test","data","ex2data1.txt"),names=["exam1","exam2","admitted"])
     X = np.array(df.iloc[:,0:2])
     y = np.array(df["admitted"])
 
