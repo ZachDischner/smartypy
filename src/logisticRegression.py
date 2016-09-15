@@ -234,19 +234,19 @@ def polymap(X, degree=1):
 
     if not isinstance(X,np.ndarray):
         X = np.array(X)
-
-    add_offset_col = False
+ 
+    non_offset_start = 1 # This assumes that there is already an offset column of ones. Only polymap X[:,1:]
     ## If working with 1d array, don't bother with offset column? Used in plot_decision_boundary only)
-    if X.ndim > 1:
-        if False in (X[:,0]==1):
-            add_offset_col = True
-    else:
+    if X.ndim <= 1:
         # PolynomialFeatures needs 2d array to work properly
         # utils.printYellow("polymap should take a 2d array, even for single vectors: np.array([[1,2,3]]). Circumventing for you anyways")
         X = np.array([X])
 
-    poly = PolynomialFeatures(degree=degree,include_bias=add_offset_col)
-    Xp   = poly.fit_transform(X)
+    if False in (X[:,0]==1):
+        non_offset_start = 0 # Turns out, no offset colum exists. So map the whole thing
+
+    poly = PolynomialFeatures(degree=degree,include_bias=True)
+    Xp   = poly.fit_transform(X[:,non_offset_start:])
 
     return Xp
 
@@ -304,7 +304,6 @@ def train_regression(X,y,theta=None, poly_degree=1,lam=1):
     theta = res.x
     return cost, theta
 
-
 def predict_sample(theta,sample,poly_degree=1,return_prob=False):
     """Predict solution of sample using a determined theta. 
 
@@ -324,7 +323,7 @@ def predict_sample(theta,sample,poly_degree=1,return_prob=False):
     """
     # If theta was computed with a polymapped design matrix, the sample must be mapped in the same fashion
     polymapped_sample = polymap(sample,degree=poly_degree)
-    match_indicator = sigmoid( polymapped_sample @ theta)
+    match_indicator = np.array(sigmoid( polymapped_sample @ theta))
     if return_prob:
         match = match_indicator.item()
     else:
@@ -402,42 +401,52 @@ class BinaryClassifier(object):
         """.format(self.X.shape[0],self.X.shape[1], len(self.y), self.degree)
         return description
 
-    def __init__(self,X,y,poly_degree=1):
+    def __init__(self,X,y,poly_degree=None,hush=False):
         self.X = X
-        ## Add offset x0 column if it isn't there
-        # if not (self.X[:,0].mean == 1 and self.X[:,].std() == 0):
-        #     self.X = np.insert(self.X, 0, 1, axis=1)
-
+        # if 
         self.y = y.astype('int16')
         self.degree = poly_degree
+        self.hush = hush
+
+    def report(self,s):
+        if self.hush:
+            return
+        print(s)
 
     def train(self):
         """Trains dataset
         """
         res = train_regression(self.X, self.y, poly_degree=self.degree)
         if res is None:
-            print("Binary Regression Failed! Maybe check into the minimization effort, or try some higher order polynomial mapping")
+            self.report("Binary Regression Failed! Maybe check into the minimization effort, or try some higher order polynomial mapping")
             return False
         ## Success! 
         cost, self.theta = res
         p = predict_sample(self.theta,self.X,poly_degree=self.degree)
         self.accuracy = (p==self.y).mean()*100.0
-        print("Dataset trained with accuracy against Design Matrix: {}".format(self.accuracy))
+        self.report("Dataset trained with accuracy against Design Matrix: {}".format(self.accuracy))
         return True
 
     def classify(self, sample):
+        """Tell whether or not the sample is positively (1) or negatively classified (0) according to the
+        dataset that this BinaryClassifier was trained upon
+        """
+        ## Basic vectorization
+        if sample.ndim>1:
+            return [self.classify(s) for s in sample]
+
+        ###### Get prediction and probablity that the fit is good
         prediction = predict_sample(self.theta,sample,poly_degree=self.degree)
         prob = predict_sample(self.theta,sample,poly_degree=self.degree, return_prob=True)
         if prediction == 1:
-            print("Sample is a positive match for regression with probalistic confidence %{:3.5}".format(100.0*prob))
+            self.report("Sample is a positive match for regression with probalistic confidence %{:3.5}".format(100.0*prob))
         else:
-            print("Sample is a negative  match for regression with probalistic confidence %{:3.5}".format(100.0*(1-prob)))
+            self.report("Sample is a negative  match for regression with probalistic confidence %{:3.5}".format(100.0*(1-prob)))
         return prediction
 
 
 
-
-#--------------------------------------------------------------------------------
+#------------------------------------------- -------------------------------------
 #------------ Not portable or general purpose test specific functions -----------
 #--------------------------------------------------------------------------------
 
@@ -666,6 +675,34 @@ def _test_multi(lam=1.0):
 
     print("\n\n================End Regularized Multi Classification Logistic Regression Test=====s================\n")
 
+def _test_BinaryClassifier():
+    """Quick functional test and usage demo"""
+    print("\n\n==============================Begin BinaryClassification Class Test============================\n")
+
+    df = pd.read_csv(os.path.join(_smarty_dir,"test","data","ex2data1.txt"),names=["exam1","exam2","admitted"])
+    X = np.array(df.iloc[:,0:2])
+    y = np.array(df["admitted"])
+
+    ## Create a BinaryClassifier object and train
+    bp0 = BinaryClassifier(X,y,poly_degree=None)
+    bp0.train()
+    print("\nBinaryClassifier trained on ex2data1.test sample test score dataset. No polynomial mapping. accuracy: {:5.5}".format(bp0.accuracy))
+
+    ## Create a BinaryClassifier object and train
+    bp3 = BinaryClassifier(X,y,poly_degree=3)
+    bp3.train()
+    print("\nBinaryClassifier trained on ex2data1.test sample test score dataset. Order 3 polynomial mapping. accuracy: {:5.5}".format(bp3.accuracy))
+
+    ## Let's compare
+    sample = X[14]
+    truth = y[14]
+    guess0 = bp0.classify(sample)
+    guess3 = bp3.classify(sample)
+    print("\n\nFor comparision, truth value of sample 14: {}\n\tNo Poly Mapping prediction: {}\n\t3rd Order Poly Mapping Prediction: {}".format(truth, guess0,guess3))
+    
+    print("\n\n==============================End BinaryClassification Class Test============================\n")
+    return bp0,bp3
+
 def test():
     """Comprehensive unit test would be nice. For now, just perform the same test procedure as MATLAB logistRetressionTest
 
@@ -679,6 +716,7 @@ def test():
     unreg_res = _test_unregularized()
     reg_res = _test_regularized()
     multi_res = _test_multi()
+    bc_res = _test_BinaryClassifier()
 
 
     

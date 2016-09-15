@@ -118,7 +118,17 @@ p = logisticRegression.predict(theta,Xp)
 training_accuracy = (p==y).mean()*100.0
 ```
 ![2D Decision Boundary Plot](http://i.imgur.com/CquuS0X.png)
-You can also feel free to work directly in the src directory for easier relative imports.
+
+* `BinaryClassifier` class can be used for training logistic regression classifier with polynomial prediction:
+```
+## X (100 x 2)and y (100 x 1) loaded from above sample
+bp3 = logisticRegression.BinaryClassifier(X,y,poly_degree=3)
+bp3.train()
+bp3.classify(np.array([50,65]))
+```
+
+* Demonstration of One-vs-all logistic regression on dataset of numeric handwriting is included in `logisticRegression._test_multi()`. You'll need to get the dataset yourself to run this test. Contact maintainer or obtain from course materials.
+![Numbers](http://i.imgur.com/t0xvK79.png)
 
 ## Todo
 Never ending list. Top among them:
