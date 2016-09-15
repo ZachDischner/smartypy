@@ -11,7 +11,7 @@ __status__     = "Dev"
 __doc__        ="""
 File name: logisticRegression.py
 Created:  11/Sept/2016
-Modified: 11/Sept/2016
+Modified: 15/Sept/2016
 
 Description:
     Multivariate Logistic Regression utilities written to mimic Matlab/Octave
@@ -58,7 +58,7 @@ Examples:
         0 
 
 TODO:
-    * Consolodate functionality into Classes to keep track of setup, facilitate multi-class classification?
+    * Finish consolodating one-vs-all functionality into Classes to keep track of setup.
         * If happy with that setup, remove all polymap() calls from functions where they don't need to be, rely
         instead on the classes/user to pass in correct arguments much cleaner that way.
     * Smarter train_regression() function, auto pick regression cost minimization method based of size/other criteria?
@@ -88,9 +88,6 @@ _smarty_dir =  os.path.split(_here)[0]     # Always .. from smarty files
 sys.path.insert(0, _here)
 import utils
 from linearRegression import normalize_features
-
-np.set_printoptions(suppress=False)
-np.set_printoptions(precision=5)
 
 ###### Module variables
 
