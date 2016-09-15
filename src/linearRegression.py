@@ -311,7 +311,9 @@ def J_plot(X,y,theta_guess=None, theta0=None,theta1=None,factor=10):
 
 
 def test():
-    """Comprehensive Unit Tests? How about a pickle file with X, y, theta
+    """Barely helpful test function/module demo. 
+
+    Comprehensive Unit Tests? How about a pickle file with X, y, theta
     and comparative solutions for the same dataset given by Matlab?
 
     For now...
@@ -331,5 +333,14 @@ def test():
     X = np.insert(X, 0, 1, axis=1)
 
     theta = np.zeros(X.shape[1])
+
+    ## Normalize X 
+    Xn,mu,sigma=smartypy.linearRegression.normalize_features(X)
+
+    ## Gradient Descent
+    theta, Jhistory = smartypy.linearRegression.gradient_descent(Xn,y,[0,0,0],0.01)
+
+    fit_plot(X,y)
+    J_plot(X,y)
     return X, y, theta
 
