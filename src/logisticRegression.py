@@ -54,12 +54,12 @@ Examples:
     X,y,J,theta,training_accuracy = _test_regularized(lam=0.1, poly_degree=2)
 
     ## Obtain a guess for new sample in same dataset
-    passfail = predict(theta, np.array([[1,3,0]]),poly_degree=2)
+    passfail = predict_sample(theta, np.array([[1,3,0]]),poly_degree=2)
         0 
 
 TODO:
     * Consolodate functionality into Class to keep track of setup, facilitate multi-class classification?
-    * Smarter train_regression() function, auto pick regression cost minimization method?
+    * Smarter train_regression() function, auto pick regression cost minimization method based of size/other criteria?
     * Type/vector size error handling?
     * Optimizations, @njit,
     * Unit tests!! *doctest for small functions? pytest for bigger ones
@@ -118,11 +118,22 @@ def hypothesize(X,theta):
     """
     return sigmoid(X @ theta) 
 
-def _mult(a,b):
-    ans = np.zeros_like(a)
-    for ix in range(a):
-        ans[ix] = a[ix]*b[ix]
-    return ans
+def _dimensionalize_y(y):
+    """Make sure y is a single dimension vector
+
+    This is tricksy and a little dumb IMO. If y is (5000x1), it takes 500x longer to 
+    do the calculations below. So convert it to a (5000,) vector...
+    """
+    if y.ndim > 1:
+        print("Cost calculation with multi dimensional is dramatically slower than with a 1d vector! You should use y=y[:,0] for speed...")
+        max_idx = y.shape.index(max(y.shape))
+        if max_idx == 0:
+            y = y[:,0]
+        else:
+           y = y[0,:] 
+
+    return y
+
 
 # jit dectoration speeds up nothing. 
 def compute_cost(X,y,theta,lam=1.0):
@@ -147,15 +158,7 @@ def compute_cost(X,y,theta,lam=1.0):
         J:      (Real) Cost of hypothesis
         grad:   ([m x 1] vector Reals) Gradient of J wrt thet. [d(J)/d(theta_j)]
     """
-    ## This is tricksy and a little dumb IMO. If y is (5000x1), it takes 500x longer to 
-    # do the calculations below. So convert it to a (5000,) vector...
-    if y.ndim > 1:
-        print("Cost calculation with multi dimensional is dramatically slower than with a 1d vector! You should use y=y[:,0] for speed...")
-        max_idx = y.shape.index(max(y.shape))
-        if max_idx == 0:
-            y = y[:,0]
-        else:
-           y = y[0,:] 
+    y = _dimensionalize_y(y)
 
     m = len(y)
     n = len(theta)
@@ -177,15 +180,9 @@ def compute_cost(X,y,theta,lam=1.0):
 
 def compute_gradient(X,y,theta,lam=1.0):
     """Compute Regularized gradient of cost function. See compute_cost for argument details"""
+    
     ## Gradient of cost function
-    if y.ndim > 1:
-        print("Cost calculation with multi dimensional is dramatically slower than with a 1d vector! You should use y=y[:,0] for speed...")
-        max_idx = y.shape.index(max(y.shape))
-        if max_idx == 0:
-            y = y[:,0]
-        else:
-            y = y[0,:] 
-
+    y = _dimensionalize_y(y)
     m = len(y)
     n = len(theta)
     hypothesis = hypothesize(X,theta)
@@ -253,7 +250,12 @@ def polymap(X, degree=1):
 def train_regression(X,y,theta=None, poly_degree=1,lam=1):  
     """Train a logistic regression problem represented by Design Matrix X and results y
     
-    Prints a big red warning if minimization did not occur. Tries a few differnet methods. 
+    Prints a big red warning if minimization did not occur. Tries a few differnet methods.
+    Just tries two different scipy.optimize.minimize() methodds for now. Better would be to choose
+    the best option for a given problem size etc, and have a more structured way of attempting multiple
+    optimizations. This function could be consolodated to a helper module and used in many ML contexts.
+    See http://docs.scipy.org/doc/scipy/reference/tutorial/optimize.html for good discussion of different
+    methods and their strengths and weaknessed.
 
     Could always write our own, or use a recommended solver from Python Coursera https://github.com/royshoo/mlsn/blob/master/python/courseraEx02.py
 
@@ -280,7 +282,6 @@ def train_regression(X,y,theta=None, poly_degree=1,lam=1):
     def cost_and_grad(theta):
         return cost(theta),grad(theta)
     
-    # return X,y,theta,cost,grad,cost_and_grad
     ## The 'Truncated Newton' TNC method seems to work well for minmimization
     res = minimize(cost_and_grad, theta, method='TNC', jac=True)
 
@@ -301,7 +302,7 @@ def train_regression(X,y,theta=None, poly_degree=1,lam=1):
     return cost, theta
 
 
-def predict(theta,sample,poly_degree=1,return_prob=False):
+def predict_sample(theta,sample,poly_degree=1,return_prob=False):
     """Predict solution of sample using a determined theta. 
 
     Args:
@@ -322,12 +323,12 @@ def predict(theta,sample,poly_degree=1,return_prob=False):
     polymapped_sample = polymap(sample,degree=poly_degree)
     match_indicator = sigmoid( polymapped_sample @ theta)
     if return_prob:
-        match = match_indicator
+        match = match_indicator.item()
     else:
         match = match_indicator.round()
     return match
 
-def train_multi_classification(X,y,lam,classifications=None,poly_degree=None):
+def train_multi_classification(X,y,lam,classifications=None,poly_degree=1):
     """Trains multiple logistic regression classifiers and returns all classifiers in 
     a matrix (thetas) where the i-th row corresponds to the the theta that predicts
     the i-th classification. 
@@ -344,13 +345,8 @@ def train_multi_classification(X,y,lam,classifications=None,poly_degree=None):
         lam:                (Real) Lambda regularization parameter (0 for unregularized)
     
     Returns:
-        classifiers: (dict)
+        classifiers: (DataFrame) Dataframe of classifier predictions where the colummns/keys
     """
-    
-    ## Add offset x0 column if it isn't there
-    if not (X[:,0].mean == 1 and X[:,].std() == 0):
-        X = np.insert(X, 0, 1, axis=1)
-
     ## Get different classifications if they aren't provided
     if classifications is None:
         classifications = np.unique(y)
@@ -358,7 +354,7 @@ def train_multi_classification(X,y,lam,classifications=None,poly_degree=None):
     classifications.sort()      # Seems like an overall good idea?
     m,n = X.shape
     
-    classifiers = {}
+    classifiers = pd.DataFrame()
     for classification in classifications:
         #                                | one-versus-all, 1 for a positive match, 0 for all others
         cost, theta = train_regression(X,y==classification, poly_degree=poly_degree, lam=lam)
@@ -366,6 +362,49 @@ def train_multi_classification(X,y,lam,classifications=None,poly_degree=None):
 
     return classifiers
 
+def predict_classifier(classifiers, sample, poly_degree=1):
+    """Predict which classifier the sampel most likely belongs to
+
+    Args:
+        classifiers:    (DataFrame) Dataframe of classifier columns of [theta] mappings
+        sample:         (Vector 1 x n) Sample array. I.E. what could be a new row of the X matrix
+
+    Kwargs:
+        poly_degree:    (Real) Same poly degree the design matrix was mapped to which
+                        the `classifiers` were trained upon.
+
+    Returns:
+        prediction: (_) Most likely classification for the sample dataset
+        confidence: (Real) Percent likliness that the sample is correctly classified by prediction
+    """
+    polymapped_sample = polymap(sample,degree=poly_degree)
+    
+    ## Apply `predict sample` to each column
+    probabilities = classifiers.apply(lambda col: predict_sample(col.values, polymapped_sample,return_prob=True))
+    prediction = probabilities.idxmax()
+    confidence = 100 * probabilities[prediction]
+    return prediction, confidence
+
+##############################################################################
+#                                   Classes
+#----------*----------*----------*----------*----------*----------*----------*
+
+class Classifier(object):
+    """Supervised classification class. Really basic placeholder.
+   
+    Only works with numeric classifications.
+    """
+    def __init__(self,X,y,poly_degree=1):
+        self.X = X
+        ## Add offset x0 column if it isn't there
+        if not (self.X[:,0].mean == 1 and self.X[:,].std() == 0):
+            self.X = np.insert(self.X, 0, 1, axis=1)
+
+        self.y = y.astype('int16')
+        self.degree = poly_degree
+
+    def train(self):
+        pass
 
 
 #--------------------------------------------------------------------------------
@@ -485,7 +524,7 @@ def _test_unregularized():
     print("\tFor a student with scores 45 and 85, we predict an admission probability of {}\t\t[MATLAB: {}]".format(prob,ans["prob"]));
 
     ## Accuracy
-    p = predict(theta,X)
+    p = predict_sample(theta,X)
     training_accuracy = (p==y).mean()*100.0
     print("\n===Training Accuracy===")
     print("\tAccuracy: {}\t\t[MATLAB: {}]".format(training_accuracy, ans["accuracy"]))
@@ -537,7 +576,7 @@ def _test_regularized(lam=1, poly_degree=6):
     print("\tOptimum theta[0:3]: {}\t\t[MATLAB: {}]".format(theta[0:3], ans["theta_opt"]))
     plot_data(X,y,theta=theta,decision_boundary=True,poly_degree=poly_degree,xlabel="Microchip Test 1",ylabel="Microchip Test 2", pos_legend="Pass",neg_legend="Fail")
     ## Accuracy
-    p = predict(theta,Xp)
+    p = predict_sample(theta,Xp)
     training_accuracy = (p==y).mean()*100.0
     print("\n===Training Accuracy===")
     print("\tAccuracy: {}\t\t[MATLAB: {}]".format(training_accuracy, ans["accuracy"]))
@@ -573,6 +612,20 @@ def _test_multi(lam=1.0):
     sel = X[rand_indices[0:100],:]
     plt.figure()
     displayData(sel)
+
+    ## Train multiple classifiers
+    classifiers = train_multi_classification(X,y,lam)
+
+    ## Display some images with our prediction
+    rand_indices = np.random.permutation(m)
+    for ii in range(5):
+        sel = X[rand_indices[ii],:]
+        plt.figure()
+        plt.imshow(sel.reshape(20,20).T, cmap=plt.cm.Greys_r)
+        pred,prob =  predict_classifier(classifiers, sel)
+        truth = y[rand_indices[ii]]
+        plt.title("Trained Classification: {} (%{} confidence)\nTruth: {}".format(pred, int(prob),truth))
+
     return X,y,theta_init
 
     print("\n\n================End Regularized Multi Classification Logistic Regression Test=====s================\n")
