@@ -58,7 +58,9 @@ Examples:
         0 
 
 TODO:
-    * Consolodate functionality into Class to keep track of setup, facilitate multi-class classification?
+    * Consolodate functionality into Classes to keep track of setup, facilitate multi-class classification?
+        * If happy with that setup, remove all polymap() calls from functions where they don't need to be, rely
+        instead on the classes/user to pass in correct arguments much cleaner that way.
     * Smarter train_regression() function, auto pick regression cost minimization method based of size/other criteria?
     * Type/vector size error handling?
     * Optimizations, @njit,
@@ -239,8 +241,9 @@ def polymap(X, degree=1):
         if False in (X[:,0]==1):
             add_offset_col = True
     else:
+        # PolynomialFeatures needs 2d array to work properly
         # utils.printYellow("polymap should take a 2d array, even for single vectors: np.array([[1,2,3]]). Circumventing for you anyways")
-        return polymap(np.array([X]))
+        X = np.array([X])
 
     poly = PolynomialFeatures(degree=degree,include_bias=add_offset_col)
     Xp   = poly.fit_transform(X)
@@ -295,7 +298,7 @@ def train_regression(X,y,theta=None, poly_degree=1,lam=1):
             utils.printGreen("Cost minimization using 'BFGS' method has succeeded with minimum cost {} for theta = {:.25}...".format(res.fun,str(res.x)))
         else:
             utils.printRed("Logistic Regression cost minimization failed using two methods. Maybe try some others?")
-            res = fmin_cg()
+            return None
     ## For explicitness
     cost = res.fun
     theta = res.x
@@ -389,22 +392,49 @@ def predict_classifier(classifiers, sample, poly_degree=1):
 #                                   Classes
 #----------*----------*----------*----------*----------*----------*----------*
 
-class Classifier(object):
-    """Supervised classification class. Really basic placeholder.
+class BinaryClassifier(object):
+    """Supervised binary classification class. Really basic placeholder.
    
     Only works with numeric classifications.
     """
+    def __repr__(self):
+        description = """Binary Regression. X: ({}x{}), y: ({}), Poly mapping degree: {}
+        """.format(self.X.shape[0],self.X.shape[1], len(self.y), self.degree)
+        return description
+
     def __init__(self,X,y,poly_degree=1):
         self.X = X
         ## Add offset x0 column if it isn't there
-        if not (self.X[:,0].mean == 1 and self.X[:,].std() == 0):
-            self.X = np.insert(self.X, 0, 1, axis=1)
+        # if not (self.X[:,0].mean == 1 and self.X[:,].std() == 0):
+        #     self.X = np.insert(self.X, 0, 1, axis=1)
 
         self.y = y.astype('int16')
         self.degree = poly_degree
 
     def train(self):
-        pass
+        """Trains dataset
+        """
+        res = train_regression(self.X, self.y, poly_degree=self.degree)
+        if res is None:
+            print("Binary Regression Failed! Maybe check into the minimization effort, or try some higher order polynomial mapping")
+            return False
+        ## Success! 
+        cost, self.theta = res
+        p = predict_sample(self.theta,self.X,poly_degree=self.degree)
+        self.accuracy = (p==self.y).mean()*100.0
+        print("Dataset trained with accuracy against Design Matrix: {}".format(self.accuracy))
+        return True
+
+    def classify(self, sample):
+        prediction = predict_sample(self.theta,sample,poly_degree=self.degree)
+        prob = predict_sample(self.theta,sample,poly_degree=self.degree, return_prob=True)
+        if prediction == 1:
+            print("Sample is a positive match for regression with probalistic confidence %{:3.5}".format(100.0*prob))
+        else:
+            print("Sample is a negative  match for regression with probalistic confidence %{:3.5}".format(100.0*(1-prob)))
+        return prediction
+
+
 
 
 #--------------------------------------------------------------------------------
@@ -593,7 +623,13 @@ def _test_multi(lam=1.0):
     print("\n\n===============Begin Regularized Multi Classification Logistic Regression Test====================\n")
 
     ###### Load dataset
-    mat = sio.loadmat(os.path.join(_smarty_dir,"test","data","ex3data1.mat"))
+    dataset = os.path.join(_smarty_dir,"test","data","ex3data1.mat")
+    if os.path.exists(dataset):
+        mat = sio.loadmat(dataset)
+    else:
+        utils.printRed("Multi regression dataset not found! It is not tracked in git, so you'll have to download it and put it here yourself: test/data/ex3data1.mat.")
+        print("Contact maintainer if you want this dataset and don't have access to get it\nNot performing test case")
+        return None,None,None
     X = mat['X']
     y = mat['y'][:,0].astype('int16') # Don't want to make this a 2d array...
 
