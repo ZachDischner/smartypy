@@ -45,7 +45,7 @@ Nomenclature:
                                     h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
 
 Examples:
-    See _test_unregularized() and _test_regularized() for good demonstration of utilities. 
+    See _test* functions for good demonstration of utilities. 
 
     You can experiment with poly order and lambda regularization parameter on sample datasets to get the 
     best fit to our dataset
@@ -85,7 +85,6 @@ from scipy.optimize import minimize, fmin_cg
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
 from smartypy import utils, _SMARTY_DIR
-from smartypy.linearRegression import normalize_features
 
 ###### Module variables
 
@@ -628,12 +627,7 @@ def _test_multi(lam=1.0):
 
     ###### Load dataset
     dataset = os.path.join(_SMARTY_DIR,"test","data","ex3data1.mat")
-    if os.path.exists(dataset):
-        mat = sio.loadmat(dataset)
-    else:
-        utils.printRed("Multi regression dataset not found! It is not tracked in git, so you'll have to download it and put it here yourself: test/data/ex3data1.mat.")
-        print("Contact maintainer if you want this dataset and don't have access to get it\nNot performing test case")
-        return None,None,None
+    mat = sio.loadmat(dataset)
     X = mat['X']
     y = mat['y'][:,0].astype('int16') # Don't want to make this a 2d array...
 
@@ -666,7 +660,7 @@ def _test_multi(lam=1.0):
         truth = y[rand_indices[ii]]
         plt.title("Trained Classification: {} (%{} confidence)\nTruth: {}".format(pred, int(prob),truth))
 
-    return X,y,theta_init
+    return X,y,theta_init,classifiers
 
     print("\n\n================End Regularized Multi Classification Logistic Regression Test=====s================\n")
 

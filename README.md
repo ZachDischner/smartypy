@@ -16,9 +16,16 @@ Summarized from: https://share.coursera.org/wiki/index.php/ML:Linear_Regression_
     Xn:     Normalized Feature Matrix (m x n+1)
     y:      Target/Solution vector (m x 1)
     J:      Cost of a sample (single value)
-    theta:  Linear Regression Coefficient Vector (n+1 x 1) ==> theta0 + theta1*x1 + theta2*x2 ... + thetan*xn
+    theta:  Regression Coefficient Vector (n+1 x 1) ==> theta0 + theta1*x1 + theta2*x2 ... + thetan*xn
     h:      Hypothesis of form: h(X) = X @ theta
                                 h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
+
+    *Neural Networks*
+    a:      Neural Network "Activation" layer.
+    theta:  Weights matrix  mapping layer [j-1] to layer [j]
+    z:      Intermediate variable for activation layer computation:
+                z(j) = Theta(j-1) @ a(j-1)
+                a(j) = sigmoid(zj)
 
 Visual
 

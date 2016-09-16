@@ -41,12 +41,6 @@ class bcolors:
 ##############################################################################
 #                                   Functions
 #----------*----------*----------*----------*----------*----------*----------*
-## Quickies to get current git hashes. Thanks SO http://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script
-def get_git_revision_hash():
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).replace("\n","")
-
-def get_git_revision_short_hash():
-    return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).replace("\n","")
 def printColor(msg,color):
     print(color + str(msg) + bcolors.ENDC)
 
