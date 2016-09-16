@@ -26,7 +26,8 @@ setup(
         "numpy",
         "numba>=0.25",
         "matplotlib",
-        "pandas"
+        "pandas",
+        "scipy"
     ],
     tests_require=[
         #"pytest"
