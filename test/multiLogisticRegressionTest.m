@@ -18,7 +18,7 @@
 
 %% Initialization
 clear ; close all; clc
-addpath('../src/Matlab')
+addpath('../smartypy/Matlab')
 addpath('data')
 
 %% Setup the parameters you will use for this part of the exercise

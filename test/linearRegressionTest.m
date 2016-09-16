@@ -29,7 +29,7 @@
 
 %% Clear and Close Figures
 clear ; close all; clc
-addpath('../src/Matlab')
+addpath('../smartypy/Matlab')
 addpath('data')
 fprintf('Loading data ...\n');
 

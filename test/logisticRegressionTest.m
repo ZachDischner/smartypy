@@ -20,7 +20,7 @@
 
 %% Initialization
 clear ; close all; clc
-addpath('../src/Matlab')
+addpath('../smartypy/Matlab')
 addpath('data')
 fprintf('Loading data ...\n');
 
