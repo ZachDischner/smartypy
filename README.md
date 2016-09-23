@@ -21,6 +21,8 @@ Summarized from: https://share.coursera.org/wiki/index.php/ML:Linear_Regression_
                                 h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
 
     *Neural Networks*
+    L:      Number of layers in a network
+    sl:     Number of neurons/nodes in a layer. Not including bias node
     a:      Neural Network "Activation" layer.
     theta:  Weights matrix  mapping layer [j-1] to layer [j]
     z:      Intermediate variable for activation layer computation:
