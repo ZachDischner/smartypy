@@ -102,6 +102,15 @@ def sigmoid(z):
     return 1/(1+np.exp(-z))
 
 @njit
+def sigmoid_prime(z):
+    """ Sigmoid function Derivative
+    Examples:
+    >>> sigmoid_prime(0)
+    0.25
+    """
+    return sigmoid(z) * (1-sigmoid(z))
+
+@njit
 def hypothesize(X,theta):
     """Hypothesize predicion y given dataset X and coefficient vector theta
 
@@ -440,8 +449,8 @@ class BinaryClassifier(object):
 
 
 
-#------------------------------------------- -------------------------------------
-#------------ Not portable or general purpose test specific functions -----------
+#--------------------------------------------------------------------------------
+#------------- Not portable: general purpose test specific functions ------------
 #--------------------------------------------------------------------------------
 
 def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_legend="Negative", decision_boundary=False, poly_degree=1):
