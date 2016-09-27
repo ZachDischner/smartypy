@@ -24,7 +24,9 @@ Examples:
 
 
 TODO:
-    Forward and back propegate kinda messy. Think up a recursive implementation. I like that much better
+    *Forward and back propegate kinda messy. Think up a recursive implementation. I like that much better
+    *Build NeuralNetwork class that facilitates everything. Potentially reimplement FP/BP since the class can know about start/stop conditions
+    *Using numpy Matrix instead of arrays sounds smarter. More Matlabl like where rows/columns matter. Refactor?
     """
 ##############################################################################
 #                                   Imports
@@ -36,7 +38,11 @@ import pandas as pd
 import pylab as plt
 import scipy.io as sio
 import pytest
+from numba import jit, njit,float64
 from scipy.optimize import minimize, fmin_cg
+
+import multiprocessing
+
 
 ## I'm tired of seeing numpy nomenclature everywhere. Looks more Matlab like this way.
 from numpy import log,zeros,ones
@@ -44,7 +50,7 @@ from numpy import log,zeros,ones
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
 from smartypy import utils, _SMARTY_DIR
-from smartypy.logisticRegression import sigmoid, sigmoid_prime, hypothesize, _dimensionalize_y # consolodate these to some other function?
+from smartypy.logisticRegression import sigmoid, sigmoid_prime, hypothesize, _dimensionalize_y,displayData # consolodate these to some other function?
 
 ###### Module variables
 term_height, term_width = os.popen('stty size', 'r').read().split()
@@ -169,6 +175,20 @@ def activate(a,theta):
     a_next = sigmoid(z)
     return a_next,z
 
+def initialize_theta(L_in,L_out,epsilon=0.12):
+    """Randomly seed a new network parameter matrix Theta.
+
+    Adds the bias term column as well
+    
+    Pretty simple funciton call
+
+    Args:
+        L_in:   (int) Number of nodes of layer feeding this Theta (to the left)
+        L_out:   (int) Number of nodes of layer fed by this Theta (to the right)
+    """
+    return np.random.rand(L_out,L_in+1)*2*epsilon-epsilon
+
+
 def forward_propegate(X, thetas):
     """Forward propegate examples matrix through neural network described by `thetas`. 
     
@@ -188,6 +208,8 @@ def forward_propegate(X, thetas):
                 a2-a(l-1) are the hidden layers 
         z:  (list of vector reals) List of z matrices used to transition between layers
     """
+    ## Ensure X is treated as a 2d vector
+    X = np.atleast_2d(X)
     a = []
     z = []
 
@@ -208,6 +230,11 @@ def forward_propegate(X, thetas):
 def back_propegate(as_,zs,y_classifications,thetas,lam=1.0):
     """Back propegate a neural network with layer nodes in list `as_` to compute cost function gradient
     
+    Speedups:
+        This is probably the MOST called function in neural network training. Biggest slow down. Tried a few
+        basic speed up ideas (@jit), not much helps. Best we can do is probably parallelize? Better yet, 
+        write our own optimizer that makes parallel calls to back_propegate for +- estiamtes? Can be pretty slow...
+
     AKA for 3 layer:
         del3 = a3 - ys
         del2 = Theta2*del3v .* sigmoidGradient(z2)
@@ -228,7 +255,7 @@ def back_propegate(as_,zs,y_classifications,thetas,lam=1.0):
     ## In NN nomenclature, layeridx = layernumber - 1
     for layeridx in reversed(range(2,num_layers)):
         #                            | Don't BP bias term
-        deltas = [deltas[-1] @ thetas[layeridx-1][:,1:] * sigmoid_prime(zs[layeridx-2])] + deltas
+        deltas = [deltas[0] @ thetas[layeridx-1][:,1:] * sigmoid_prime(zs[layeridx-2])] + deltas
 
     for layeridx,delta in enumerate(deltas):
         ## Prepend next back-calculation to lists of deltas and Deltas
@@ -246,9 +273,7 @@ def back_propegate(as_,zs,y_classifications,thetas,lam=1.0):
 
     return theta_grads
         
-
-
-def compute_cost(X,y,thetas,lam=1.0):
+def compute_cost(X,y,thetas,lam=1.0,grad=False):
     """Compute classification cost of hypothesized `theta` against test dataset X and solutions y
 
     Basically forward propegates array of sample data through each Theta transformation layer until we arrive
@@ -282,8 +307,8 @@ def compute_cost(X,y,thetas,lam=1.0):
         J:      (Real) Cost of hypothesis
         grad:   ([m x 1] vector Reals) Gradient of J wrt thet. [d(J)/d(theta_j)]
     """
-
-    # y = _dimensionalize_y(y)
+    ## Ensure X is treated as a 2d vector (hint, X[0]==>(400,) is not 2d (1,400))
+    X = np.atleast_2d(X)
     m = len(y)
 
     ###### Perform forward propegation
@@ -291,7 +316,7 @@ def compute_cost(X,y,thetas,lam=1.0):
     hypothesis = a_mats[-1]
 
     ###### Form vectors of y solutions, where the 1 in each y_classification is the value of the corresponding y
-    num_classifications = len(np.unique(y))
+    num_classifications = 10#len(np.unique(y))
     y_classifications = zeros((m,num_classifications))
     for idx in range(m):
         y_classifications[idx,y[idx]] = 1
@@ -304,12 +329,205 @@ def compute_cost(X,y,thetas,lam=1.0):
     ## Regularization part - don't include regulariation of bias term (first column)
     regularization = (lam/2.0/m) * sum([(theta[:,1:]**2).sum() for theta in thetas])   # verified!
     J += regularization
-    
+
+    if grad:
+        gradients = back_propegate(a_mats,zs,y_classifications,thetas,lam=lam)
+        return J,gradients
+
     return J
+
+def predict(X,thetas):
+    """Predict neural output of neural network described by `thetas` with input sample X
+    """
+    ###### Ensure input is treated as at least a 2D vector
+    ## AKA, make sure a single row of an X matrix is treated as a (1,n) vector, instead of (n,) which is just a pain in the ass
+    X = np.atleast_2d(X)
+
+    ###### Forward propegate sample data
+    as_,zs = forward_propegate(X,thetas)
+    ## Hypothesis is last `a` matrix  (set of nodes) in the neural network
+    hypothesis = as_[-1]
+
+    ## Index of maximum in each hypothesis directly corresponds to the hypothesis in current formulations. Neat! 
+    predictions = list(zip(hypothesis.argmax(axis=1),hypothesis.max(axis=1)))
+
+    return predictions
+
+def flatten_arrays(thetas):
+    tvec = np.array([])
+    shapes = []
+    for theta in thetas:
+        shapes.append(theta.shape)
+        tvec = np.append(tvec,theta.flatten())
+    return tvec,shapes
+
+def unflatten(thetas_vec, shapes):
+    """Reconstruct 2D theta vectors from a single flattened array according to the shapes provided
+
+    Basically undoes `flatten_arrays()`
+    """
+    thetas = []
+    idx = 0
+    for shp in shapes:
+        idx_end = idx+(shp[0]*shp[1])
+        ## C order reshaping? Honestly I'm not sure which to use but this handles the reconstruction properly I believe...
+        theta = np.reshape(thetas_vec[idx:idx_end], shp, order='C').copy()
+        thetas.append(theta)
+        idx = idx_end
+    return thetas
+
+iternum = 0
+
+def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True):
+    """Train a neural network with sample data X, solutions y, list of node sizes
+    
+    Assumptions:
+        Not too smart. layer_nodes's first layer should match the X column length, layer_nodes's
+        last layer should match up with the classifications of y (AKA the unique elements of y)
+
+    Description:
+        `layer_nodes` will dictate the shape and size of the neural network. Theta matrices will
+        be constructed from it
+        layer_nodes = [3,5,2] builds a neural network like:
+                
+                  /---()---\
+                ()----()----\
+                () \--()-----()
+                ()  \-()---/ ()
+                     -()--/
+    Args:
+        X
+        y
+        layer_nodes:    (list of ints) Spec for number of layers and how big they are
+    """
+
+    print("Training neural network described layer nodes={}. Regularization={}".format(layer_nodes,lam))
+    m,n = X.shape
+
+    ###### Initialize Theta matrices
+    thetas_init = []
+    for layer_idx in range(len(layer_nodes)-1):
+        thetas_init.append(initialize_theta(layer_nodes[layer_idx],layer_nodes[layer_idx+1]))
+    
+    ## Flattened, vectorized edition
+    thetas_vec,theta_shapes = flatten_arrays(thetas_init) 
+
+    ###### Form classifications for y
+    num_classifications = len(np.unique(y))
+    y_classifications = zeros((m,num_classifications))
+    for idx in range(m):
+        y_classifications[idx,y[idx]] = 1
+
+    # return thetas_vec,thetas_init, theta_shapes
+    ###### Create FP and BP wrapper functions
+    # Simplifies the calling in minimization functions, as well as un-flattens input thetas
+    def cost_and_grad(thetas_vec):
+        thetas = unflatten(thetas_vec,theta_shapes)
+        J,g_vecs = compute_cost(X,y,thetas,lam=lam,grad=True)
+        return J, flatten_arrays(g_vecs)[0]
+    
+    def cost(thetas_vec):
+        return cost_and_grad(thetas_vec)[0]
+    
+    def grad(thetas_vec):
+        return flatten_arrays(cost_and_grad(thetas_vec)[1])[0]
+
+    def status_update(XX):
+        global iternum
+        print("Iter: {}, cost: {:3.5f}".format(iternum,cost(XX)))
+        iternum += 1
+        ## Can put in logic to see if the time between iterations has slowed, or if cost isn't converging anymore...
+        if iternum > 50:
+            raise Exception("Too long!")
+
+    ###### Perform Minimization!
+    initialcost = cost(thetas_vec)
+    print("Performing minimization (this could take a while). Initial cost: {}".format(initialcost))
+    ## Speed/accuracy stats are based off of test case. Favorites first
+
+    ## Newton CG: Speed = 8, minimization=2
+    ret = minimize(cost_and_grad, thetas_vec, method='newton-cg', jac=True, callback=status_update, options={"maxiter":max_iter,"disp":report})
+
+    ## L-BFGS-B: Speed = 10, minimization=4    
+    # ret = minimize(cost_and_grad, thetas_vec, method='L-BFGS-B', jac=True, callback=None, options={"maxiter":max_iter,"disp":report})
+
+    ## CG: Speed = 2, minimization=8
+    # ret = minimize(cost_and_grad, thetas_vec, method='cg', jac=True, callback=status_update, options={"maxiter":max_iter,"disp":report})
+
+    ## BFGS: Speed = 0---, minimization=5 
+    # ret = minimize(cost_and_grad, thetas_vec, method='BFGS', jac=True, callback=status_update, options={"maxiter":max_iter,"disp":report})
+
+    print("Minimization completed with final cost {}".format(ret.fun))
+    thetas_opt = unflatten(ret.x,theta_shapes)
+    
+    ## Speed = 5, minimization=5
+    # ret = fmin_cg(cost,thetas_vec,fprime=grad,maxiter=max_iter,full_output=True,callback=status_update, disp=True)
+    # print("Minimization completed with final cost {}".format(ret[1]))
+    # thetas_opt = unflatten(ret[0],theta_shapes)
+
+    return thetas_opt,ret
+
 
 #--------------------------------------------------------------------------------
 #------------- Not portable: general purpose test specific functions ------------
 #--------------------------------------------------------------------------------
+
+## Taken from previous course material as a sanity check. https://github.com/royshoo/mlsn/blob/master/python/funcsEx04.py
+# Pretty close to my results but not exact? My result is closer to Matlab's solution. also runs about 90x faster B-)
+# nn_params=np.append(theta1.flatten(),theta2.flatten())
+def nnCostFunction(nn_params,input_layer_size,hidden_layer_size,num_labels,X,y,lamb):
+    Theta1 = np.matrix(np.reshape(nn_params[:hidden_layer_size*(input_layer_size+1)],(hidden_layer_size,input_layer_size+1),order='F'))
+    Theta2 = np.matrix(np.reshape(nn_params[hidden_layer_size*(input_layer_size+1):],(num_labels,hidden_layer_size+1),order='F'))
+    
+    a1 = np.c_[np.ones((X.shape[0],1)),X]
+    a2 = np.c_[np.ones((X.shape[0],1)),sigmoid(a1*Theta1.T)]
+    a3 = sigmoid(a2*Theta2.T)
+
+    Y = np.zeros((X.shape[0],num_labels))
+
+    for i in range(num_labels):
+        for j in range(X.shape[0]):
+            if y[j] == i+1: # To be consistant with matlab program
+                Y[j,i%10] = 1
+
+    J = (np.multiply(-Y,np.log(a3))-np.multiply(1-Y,np.log(1-a3))).sum().sum()/X.shape[0]
+    J += lamb*(np.power(Theta1[:,1:],2).sum().sum()+np.power(Theta2[:,1:],2).sum().sum())/X.shape[0]/2
+
+    Delta1 = np.zeros((hidden_layer_size,input_layer_size+1))
+    Delta2 = np.zeros((num_labels,hidden_layer_size+1))
+
+    for t in range(X.shape[0]):
+        # 1
+        a_1 = np.matrix(np.r_[np.ones(1),X[t,:].T]).T
+        z_2 = np.dot(Theta1,a_1)
+        a_2 = np.matrix(np.r_[np.ones((1,1)),sigmoid(z_2)])
+        z_3 = np.dot(Theta2,a_2)
+        a_3 = sigmoid(z_3)
+
+        # 2
+        yvec = np.zeros((num_labels,1))
+        yvec[y[t]-1] = 1
+        delta3 = a_3-yvec
+
+        # 3
+        delta2 = np.multiply(Theta2.T*delta3,np.matrix(np.r_[np.ones((1,1)),sigmoid_prime(z_2)]))
+
+        # 4
+        delta2 = delta2[1:]
+        Delta2 += delta3*a_2.T
+        Delta1 += delta2*a_1.T
+
+    Theta1_grad = Delta1/X.shape[0]
+    Theta2_grad = Delta2/X.shape[0]
+
+    Theta1_grad[:,1:] = Theta1_grad[:,1:]+Theta1[:,1:]*lamb/X.shape[0]
+    Theta2_grad[:,1:] = Theta2_grad[:,1:]+Theta2[:,1:]*lamb/X.shape[0]
+    
+    grad = np.r_[np.matrix(np.reshape(Theta1_grad,Theta1.shape[0]*Theta1.shape[1],order='F')).T,np.matrix(np.reshape(Theta2_grad,Theta2.shape[0]*Theta2.shape[1],order='F')).T]
+
+    return J,grad
+
+
 def _test_prediction():
     """Comprehensive unit test would be nice. For now, just perform the same test procedure
     as MATLAB neuralNetworkPredictiontest.m
@@ -363,6 +581,7 @@ def _test_prediction():
     return X,y,theta1,theta2,hypothesis,predictions
 
 def _test_nn():
+    ###### Load up sample data
     weights = os.path.join(_SMARTY_DIR,"test","data","ex3weights.mat")
     dataset = os.path.join(_SMARTY_DIR,"test","data","ex3data1.mat")
     inits = os.path.join(_SMARTY_DIR,"test","inits.mat")
@@ -374,9 +593,20 @@ def _test_nn():
     # Load y specifically into 1d array with datatype int16 (from mat file, it is an uint8. Which can cause tricksy issues)
     y = mat['y'][:,0].astype('int16')
     y[y==10] = 0
-    theta1 = inits['Theta1']
-    theta2 = inits['Theta2']
-    thetas = [theta1,theta2]
+    m = len(y)
+
+    num_classifications = len(np.unique(y))
+    y_classifications = zeros((m,num_classifications))
+    for idx in range(m):
+        y_classifications[idx,y[idx]] = 1
+
+    ###### Train a neural network
+    layer_nodes = (400,100,20,10)
+    thetas_opt,ret = train_NeuralNetwork(X,y,layer_nodes)
+    return X,y,thetas_opt,y_classifications
+
+
+
 
 
 
