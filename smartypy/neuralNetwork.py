@@ -227,6 +227,57 @@ def forward_propegate(X, thetas):
 
     return a,z
 
+@njit
+def bp_delta(delta1,theta0,z1):
+    return (delta1 @ theta0) * sigmoid_prime(z1)
+@njit
+def bp_Delta(delta,theta,a,lam,m):
+    # ttheta = theta.copy()
+    # d0 = (delta @ theta) * sigmoid_prime(z)
+    
+    Delta = delta.T @ a
+    tmp = theta[:,0].copy()
+    theta[:,0]=0
+    tg = 1.0/m * Delta + (1.0*lam/m)*theta
+    theta[:,0]=tmp
+    return Delta,tg
+
+def fast_back_propegate(as_,zs,y_classifications,thetas,lam=1.0,full_output=False):
+    """Identical to `back_propegate` except that the delta and Delta, theta gradients are calculated layer-by-layer,
+    instead of first calculating all deltas, then all Deltas, then all theta gradients. 
+
+    Hopes were that we @jnit would speed up the calc. Didn't much, but I still wanted to separate the operation out
+    in anticipation of a nice neural network class, or someday using a numbapro/cuda to offload some of this to the gpu
+    """
+    m = len(y_classifications)
+    deltas = []
+    Deltas = []
+    theta_grads = []
+    num_layers = len(as_)
+
+    for ix in reversed(range(1,num_layers)):
+        ## Explicitness and ease of comprehension: Going from layer B to layer A backwards
+        zA = zs[ix-1]
+        thetaA = thetas[ix-1]
+        aA = as_[ix-1]
+
+        # print("Processing layer ",ix)
+        if ix == num_layers-1:
+            deltaA = as_[-1] - y_classifications
+        else:
+            thetaB = thetas[ix]
+            deltaA = bp_delta(deltaA,thetaB[:,1:], zA)
+
+        DeltaAB, theta_gradAB = bp_Delta(deltaA, thetaA,aA,lam,m)
+
+        deltas = [deltaA] + deltas
+        Deltas = [DeltaAB] + Deltas
+        theta_grads = [theta_gradAB] + theta_grads
+
+    if full_output:
+        return theta_grads,deltas,Deltas
+    return theta_grads
+
 def back_propegate(as_,zs,y_classifications,thetas,lam=1.0):
     """Back propegate a neural network with layer nodes in list `as_` to compute cost function gradient
     
@@ -272,8 +323,8 @@ def back_propegate(as_,zs,y_classifications,thetas,lam=1.0):
         theta[:,0] = tmp
 
     return theta_grads
-        
-def compute_cost(X,y,thetas,lam=1.0,grad=False):
+
+def compute_cost(X,y,thetas,y_classifications=None,lam=1.0,grad=False):
     """Compute classification cost of hypothesized `theta` against test dataset X and solutions y
 
     Basically forward propegates array of sample data through each Theta transformation layer until we arrive
@@ -298,7 +349,7 @@ def compute_cost(X,y,thetas,lam=1.0,grad=False):
     Args:
         X:      (ndarray Reals) Design Matrix 
         y:      (vector Reals) Solution vector
-        thetas:  (list of vector Reals) List of Theta activation matrices, one per layer. 
+        thetas: (list of vector Reals) List of Theta activation matrices, one per layer. 
     
     Kwargs:
         lam:    (Real >= 0) Lambda "regularization parameter"
@@ -311,30 +362,34 @@ def compute_cost(X,y,thetas,lam=1.0,grad=False):
     X = np.atleast_2d(X)
     m = len(y)
 
+
     ###### Perform forward propegation
     a_mats,zs = forward_propegate(X,thetas)
     hypothesis = a_mats[-1]
 
     ###### Form vectors of y solutions, where the 1 in each y_classification is the value of the corresponding y
-    num_classifications = 10#len(np.unique(y))
-    y_classifications = zeros((m,num_classifications))
-    for idx in range(m):
-        y_classifications[idx,y[idx]] = 1
+    if y_classifications is None:
+        num_classifications = 10#len(np.unique(y))
+        y_classifications = zeros((m,num_classifications))
+        for idx in range(m):
+            y_classifications[idx,y[idx]] = 1
 
     ## Cost function
     #                |THIS, -y is different than -1.0*y if y happens to be uint           |regularization
     # J = (1.0/m) * ((-1.0*y).dot(np.log(hypothesis)) - (1-y).dot(np.log(1-hypothesis))) + (lam/2.0/m)*sum(theta**2.0)
-    J = (1.0/m) * sum(sum((-1.0)*y_classifications*log(hypothesis) - (1-y_classifications)*log(1-hypothesis)))
+    J = (1.0/m) * ((-1.0)*y_classifications*log(hypothesis) - (1-y_classifications)*log(1-hypothesis)).sum()
 
     ## Regularization part - don't include regulariation of bias term (first column)
     regularization = (lam/2.0/m) * sum([(theta[:,1:]**2).sum() for theta in thetas])   # verified!
     J += regularization
 
     if grad:
-        gradients = back_propegate(a_mats,zs,y_classifications,thetas,lam=lam)
+        gradients = fast_back_propegate(a_mats,zs,y_classifications,thetas,lam=lam)
         return J,gradients
 
     return J
+
+
 
 def predict(X,thetas):
     """Predict neural output of neural network described by `thetas` with input sample X
@@ -378,7 +433,57 @@ def unflatten(thetas_vec, shapes):
 
 iternum = 0
 
-def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True):
+def check_gradients(X,y,thetas,lam=1.0):
+    def approximate_grad(tv,epsilon=1e-4):
+        approx_grads = np.empty(tv.shape)
+        tvplus = tv.copy()
+        tvminus = tv.copy()
+        for ix in range(len(tv)):
+            if ix % 100 == 0:
+                print("Numerical evaluation %{}".format(ix*1.0/m), end='\r')
+            ## Alter this theta
+            tvplus[ix] += epsilon
+            tvminus[ix] -= epsilon
+            tplus = unflatten(tvplus,shapes)
+            tminus = unflatten(tvminus,shapes)
+
+            ## Compute approximate gradient 
+            Jplus = compute_cost(X,y,tplus,lam=lam)
+            Jminus = compute_cost(X,y,tminus,lam=lam)
+            approx_grads[ix] = (Jplus - Jminus)/(2.0*epsilon)
+
+            ## Reset
+            tvplus[ix] -= epsilon
+            tvminus[ix] += epsilon
+        print("")
+        return approx_grads
+
+    print("Comparing numerically approximated gradients against closed form solution")
+    m,n = X.shape
+    if m > 100:
+        utils.printRed("HIGHLY recommended that you dont' check gradients when m ({}) is > 100. Super duper slow...".format(m))
+    
+    thetas_vec,shapes = flatten_arrays(thetas)
+    g_approx = approximate_grad(thetas_vec)
+
+    J,gtrue = compute_cost(X,y,thetas,lam=lam,grad=True)
+    gtrue_flat,s = flatten_arrays(gtrue) 
+
+    print("------Real------|-----Approx-----")
+    for ii in range(5):
+        print("   {:3.4f}\t|\t{:3.4f}\t".format(gtrue_flat[ii],g_approx[ii]))
+    gdiff = np.linalg.norm(g_approx-gtrue_flat)/np.linalg.norm(g_approx+gtrue_flat)
+    print("Computed norm of the difference = {}".format(gdiff))
+    good = False not in np.isclose(gtrue_flat,g_approx)
+    if good:
+        utils.printGreen("According to numpy, this means the back propegation is working!")
+    else:
+        utils.printRed("According to numpy, this means that the approximation and true aren't equal...")
+
+    return good, gtrue_flat,g_approx,shapes
+
+
+def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True,check_grads=True):
     """Train a neural network with sample data X, solutions y, list of node sizes
     
     Assumptions:
@@ -399,8 +504,9 @@ def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True):
         X
         y
         layer_nodes:    (list of ints) Spec for number of layers and how big they are
-    """
 
+    Kwargs:
+    """
     print("Training neural network described layer nodes={}. Regularization={}".format(layer_nodes,lam))
     m,n = X.shape
 
@@ -423,15 +529,20 @@ def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True):
     # Simplifies the calling in minimization functions, as well as un-flattens input thetas
     def cost_and_grad(thetas_vec):
         thetas = unflatten(thetas_vec,theta_shapes)
-        J,g_vecs = compute_cost(X,y,thetas,lam=lam,grad=True)
+        J,g_vecs = compute_cost(X,y,thetas,lam=lam,grad=True,y_classifications=y_classifications)
         return J, flatten_arrays(g_vecs)[0]
-    
+
+    def cost_and_grad2(nn_params):
+        J,g = nnCostFunction(nn_params,layer_nodes[0], layer_nodes[1], num_classifications, X,y,lam)
+        return J,np.squeeze(np.asarray(g))
+
     def cost(thetas_vec):
         return cost_and_grad(thetas_vec)[0]
     
     def grad(thetas_vec):
         return flatten_arrays(cost_and_grad(thetas_vec)[1])[0]
 
+    ###### Callback function to display progress, etc
     def status_update(XX):
         global iternum
         print("Iter: {}, cost: {:3.5f}".format(iternum,cost(XX)))
@@ -601,7 +712,7 @@ def _test_nn():
         y_classifications[idx,y[idx]] = 1
 
     ###### Train a neural network
-    layer_nodes = (400,100,20,10)
+    layer_nodes = (400,25,10)
     thetas_opt,ret = train_NeuralNetwork(X,y,layer_nodes)
     return X,y,thetas_opt,y_classifications
 
