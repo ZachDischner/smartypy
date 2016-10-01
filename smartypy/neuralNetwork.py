@@ -38,6 +38,7 @@ import pandas as pd
 import pylab as plt
 import scipy.io as sio
 import pytest
+import itertools
 from numba import jit, njit,float64
 from scipy.optimize import minimize, fmin_cg
 
@@ -97,46 +98,99 @@ class Layer(object):
         self.input_nodes = None
         self._output_nodes = None
     
-    def activate(self, input_nodes):
+    def forward_propegate(self, input_nodes):
         """Activate input_nodes"""
         self.input_nodes = input_nodes
-        self._output_nodes = activate(self.input_nodes, self.theta)
-        return self._output_nodes 
+        self._output_nodes,self.z_output = activate(self.input_nodes, self.theta)
+        return self._output_nodes,self.z_output
 
-class NeuralNetwork(object):
+class SupervisedNeuralNetwork(object):
     """Object containing multiple layers, which which you can compute the traversal
     of input dataset through many hidden activation layers
     """
+
+    @property
+    def input_layer(self):
+        return self.layers[0]
+    @property
+    def output_layer(self):
+        return self.layers[-1]
+
     def __repr__(self):
         if len(self.layers) > 0:
-            me = """Neural Network with {} Layers, mapping {} inputs to {} outputs""".format(len(self.layers), self.layers[0].num_input, self.layers[-1].num_output)
+            me = """Neural Network with {} Layers, mapping {} inputs to {} outputs""".format(len(self.layers), self.layers[0], self.layers[-1])
         else:
             me = """Empty Neural Network (does nothing to input)"""
         return me
 
-    def __init__(self,thetas=None):
-        """Not bothering with much until we get further in the class"""
-        self.layers = []
+    def __init__(self,X,y,hidden_layer_sizes=None, num_classifications=None, regularization=1.0):
+        """Not bothering with much until we get further in the class
+        
+        If num_classifications is not provided, it is assumed that y has the full set of representative solutions
+        Vectors of classiciations are built based off of y, where the classification index corresponds to the value of y
+        AKA if y has 10 unique elements, y_classifications will be made of 10 element vectors, where y==0 corresponds
+        to y_classifications[0] = 1
+        """
+        self.Xtrain = X
+        self.m,self.n = X.shape
+        self.y = y
+        if num_classifications is None:
+            num_classifications = len(np.unique(y))
+            self.y_classifications = zeros((self.m,num_classifications))
+            for idx in range(self.m):
+                self.y_classifications[idx,y[idx]] = 1
+        self.layers = [self.n, num_classifications]
+        self.as_ = None
+        self.zs = None
+        self.lam = regularization
+        self.initialize()
 
-    def add_layer(self,theta=None,layer=None):
-        if layer is not None:
-            self.layers.append(layer)
-        if theta is not None:
-            self.layers.append(Layer(theta))
+    def add_layer(self,num_nodes):
+        """Adds a hidden layer to the neural network"""
+        self.layers = self.layers[:-1] + [num_nodes] + [self.layers[-1]]
+        self.initialize() 
 
-    def process(self, X):
+    def initialize(self):
+        def pairwise(iterable):
+            """s -> (s0,s1), (s1,s2), (s2, s3), ...
+            http://stackoverflow.com/questions/5434891/iterate-a-list-as-pair-current-next-in-python
+            """
+            a, b = itertools.tee(iterable)
+            next(b, None)
+            return zip(a, b)
+        self.thetas = []
+        for nodes_in,nodes_out in pairwise(self.layers):
+            self.thetas.append(initialize_theta(nodes_in,nodes_out))
+
+    def forward_propegate(self):
         """Process input X through the neural network. 
 
         Returns rows of sigmoid probabilities (final activation layer) of each row of X which
         correspond to a classification set, where the index of the maximum probability indicates
         the most likely classification of that sample.
         """
-        a = X
-        for layer in self.layers:
-            print("processing layer {}".format(layer))
-            a = layer.activate(a)
+        self.as_, self.zs = forward_propegate(self.Xtrain,self.thetas)
+        hypothesis = self.as_[-1]
+        return hypothesis
 
-        return a
+    def back_propegate(self):
+        # Check for forward prop first...
+        self.gradients = back_propegate(self.as_,self.zs,self.y_classifications,self.thetas)
+        return self.gradients
+
+    def grad(self):
+        return self.back_propegate()
+
+    def cost(self):
+        self.J = compute_cost(self.Xtrain,self.y,self.thetas,y_classifications=self.y_classifications,lam=1.0,grad=False)
+        return self.J
+
+    def predict(self,X):
+        return predict(X,self.thetas)
+
+    def train(self,max_iter=10):
+        self.thetas,self.train_status = train_NeuralNetwork(self.Xtrain,self.y,thetas=self.thetas,y_classifications=self.y_classifications,lam=1.0,max_iter=max_iter,report=True,check_grads=False)
+
 
 
 ##############################################################################
@@ -187,7 +241,6 @@ def initialize_theta(L_in,L_out,epsilon=0.12):
         L_out:   (int) Number of nodes of layer fed by this Theta (to the right)
     """
     return np.random.rand(L_out,L_in+1)*2*epsilon-epsilon
-
 
 def forward_propegate(X, thetas):
     """Forward propegate examples matrix through neural network described by `thetas`. 
@@ -431,8 +484,6 @@ def unflatten(thetas_vec, shapes):
         idx = idx_end
     return thetas
 
-iternum = 0
-
 def check_gradients(X,y,thetas,lam=1.0):
     def approximate_grad(tv,epsilon=1e-4):
         approx_grads = np.empty(tv.shape)
@@ -482,8 +533,8 @@ def check_gradients(X,y,thetas,lam=1.0):
 
     return good, gtrue_flat,g_approx,shapes
 
-
-def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True,check_grads=True):
+iternum = 0
+def train_NeuralNetwork(X,y,layer_nodes=None,thetas=None, y_classifications=None,lam=1.0,max_iter=20,report=True,check_grads=False):
     """Train a neural network with sample data X, solutions y, list of node sizes
     
     Assumptions:
@@ -509,22 +560,27 @@ def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True,check_gr
     """
     print("Training neural network described layer nodes={}. Regularization={}".format(layer_nodes,lam))
     m,n = X.shape
+    global iternum
+    iternum = 0
 
     ###### Initialize Theta matrices
-    thetas_init = []
-    for layer_idx in range(len(layer_nodes)-1):
-        thetas_init.append(initialize_theta(layer_nodes[layer_idx],layer_nodes[layer_idx+1]))
+    if thetas is None:
+        thetas_init = []
+        for layer_idx in range(len(layer_nodes)-1):
+            thetas_init.append(initialize_theta(layer_nodes[layer_idx],layer_nodes[layer_idx+1]))
+    else:
+        thetas_init = thetas
     
     ## Flattened, vectorized edition
     thetas_vec,theta_shapes = flatten_arrays(thetas_init) 
 
     ###### Form classifications for y
-    num_classifications = len(np.unique(y))
-    y_classifications = zeros((m,num_classifications))
-    for idx in range(m):
-        y_classifications[idx,y[idx]] = 1
+    if y_classifications is None:
+        num_classifications = len(np.unique(y))
+        y_classifications = zeros((m,num_classifications))
+        for idx in range(m):
+            y_classifications[idx,y[idx]] = 1
 
-    # return thetas_vec,thetas_init, theta_shapes
     ###### Create FP and BP wrapper functions
     # Simplifies the calling in minimization functions, as well as un-flattens input thetas
     def cost_and_grad(thetas_vec):
@@ -548,8 +604,8 @@ def train_NeuralNetwork(X,y,layer_nodes,lam=1.0,max_iter=20,report=True,check_gr
         print("Iter: {}, cost: {:3.5f}".format(iternum,cost(XX)))
         iternum += 1
         ## Can put in logic to see if the time between iterations has slowed, or if cost isn't converging anymore...
-        if iternum > 50:
-            raise Exception("Too long!")
+        # if iternum > 50:
+        #     raise Exception("Too long!")
 
     ###### Perform Minimization!
     initialcost = cost(thetas_vec)

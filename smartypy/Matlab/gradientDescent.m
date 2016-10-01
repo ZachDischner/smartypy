@@ -25,15 +25,10 @@ for iter = 1:num_iters
     %                                |hyp      |mult var derivative
     theta = theta - ((alpha/m) * (X*theta -y)'*X)';
 
-
-
-
-
-
     % ============================================================
 
     % Save the cost J in every iteration    
-    J_history(iter) = computeCost(X, y, theta);
+    J_history(iter) = linearRegressionCostFunctionReg(X, y, theta);
 
 end
 

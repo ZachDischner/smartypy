@@ -13,6 +13,8 @@ File name: linearRegression.py
 Created:  04/Sept/2016
 Modified: 04/Sept/2016
 
+Production ready? Lol no. 
+
 Description:
     Multivariate Linear Regression utilities written to mimic Matlab/Octave
     scripts developed for the Coursera Machine Learning course.
@@ -84,7 +86,7 @@ def hypothesize(X,theta):
     """
     return X @ theta 
 
-def compute_cost(X,y,theta):
+def compute_cost(X,y,theta,lam=1.0):
     """Compute cost of hypothesized `theta` against test dataset X and solutions y
 
     Description:
@@ -95,15 +97,38 @@ def compute_cost(X,y,theta):
         X:      (ndarray Reals) Design Matrix 
         y:      (vector Reals) Solution vector
         theta:  (vector Reals) Coefficient Vector
+        grad:   (Bool) Also compute and return gradient
 
     Returns:
         J:  (Real) Cost of hypothesis
+        grad: (optionally vector Reals) dJ/dtheta
     """
     m = len(y)
     hypothesis = hypothesize(X,theta)
     error = (hypothesis - y)**2.0
-    J = (1.0/2.0/m) * sum(error)
+    # This part subustitute the theta0 term with zero in the theta array since it does not get regularized
+    tmp = theta[0]
+    theta[0] = 0.0
+    J = (1.0/2.0/m) * sum(error) + (lam/2.0/m)*sum(theta**2.0)
+    ## Put original theta value back. 
+    theta[0] = tmp
+
     return J
+
+def compute_gradient(X,y,theta,lam=1.0):
+    """Compute Regularized gradient of cost function. See compute_cost for argument details"""
+    
+    ## Gradient of cost function
+    m = len(y)
+    hypothesis = hypothesize(X,theta)
+
+    # This part subustitute the theta0 term with zero in the theta array since it does not get regularized
+    tmp = theta[0]
+    theta[0] = 0
+    grad = (1.0/m) * X.T @ (hypothesis - y) + (lam/m) * theta;
+    ## Put original theta value back.
+    theta[0] = tmp
+    return grad
 
 def solve_normal(X,y):
     """Solve Normal equations for analytical, closed form minimization
@@ -175,7 +200,7 @@ def denormalize(Xn, mu, sigma):
     X = Xn*sigma + mu
     return X
 
-def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None,theta_hist=False):
+def train_gradient_descent(Xn,y,theta,alpha,lam=1.0, num_iters=1000,tol=None,theta_hist=False):
     """Perform gradient descent optimization to learn theta that creates the best fit
     hypothesis h(theta)=X @ theta to the dataset
 
@@ -204,7 +229,7 @@ def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None,theta_hist=False):
         theta_history.append(theta)
 
         ## Save new J cost
-        J_history.append(compute_cost(Xn,y,theta))
+        J_history.append(compute_cost(Xn,y,theta,lam=lam))
         if (idx>1) and (tol is not None) and (J_history[-1]-J_history[-2] <= tol):
             break
 
@@ -214,6 +239,18 @@ def gradient_descent(Xn,y,theta,alpha,num_iters=1000,tol=None,theta_hist=False):
     if theta_hist:
         return theta, J_history, np.vstack(theta_history)
     return theta, J_history
+
+def train_accuracy(Xpn,y,theta):
+    """Remember, for accurate predictions, you should pass in teh same normalized, polymapped X matrix that you
+    trained your dataset on. 
+    """
+    m,n = X.shape
+    Xn,_,_ = normalize_features(X)
+    prediction = hypothesize(Xn,theta)
+    error = (prediction - y)**2.0/m
+    accuracy = mean((1-abs((lr.hypothesize(Xpn,th) - y))/y)*100)
+    return error,accuracy
+
 
 def fit_plot(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
     """Vis helper for 3d datasets
@@ -228,7 +265,7 @@ def fit_plot(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
     m = len(y)
     if theta is None:
         Xn,mu,sigma = normalize_features(X)
-        theta, J_History = gradient_descent(Xn,y,[0,0,0],0.01)
+        theta, J_History = train_gradient_descent(Xn,y,[0,0,0],0.01)
 
     ###### First, plot hypothsis
     xs = np.linspace(X[:,1].min(), X[:,1].max(), m)
@@ -254,6 +291,7 @@ def fit_plot(X,y,theta=None,theta_norm=None, xlabel="x",ylabel="y", zlabel="z"):
     plt.show(block=False)
     return ax
 
+
 def J_plot(X,y,theta_guess=None, theta0=None,theta1=None,factor=10):
     """Producesd contout and surface plot to visualize J cost function. Helper to make sure we're on track.
 
@@ -265,10 +303,10 @@ def J_plot(X,y,theta_guess=None, theta0=None,theta1=None,factor=10):
     if theta_guess is None:
         theta_guess = [0,0]
 
-    Xn = normalize_features(X) ## Doesn't hurt if already normalized
+    Xn,_,_ = normalize_features(X) ## Doesn't hurt if already normalized
 
     ## Hard to compare j_hist since it is based off normalized...?
-    theta, J_hist, theta_hist = gradient_descent(X,y,theta_guess, 0.01,theta_hist=True)
+    theta, J_hist, theta_hist = train_gradient_descent(Xn,y,theta_guess, 0.001,theta_hist=True)
     theta = solve_normal(X,y)
     best_cost = compute_cost(X,y,theta)
     
@@ -282,7 +320,7 @@ def J_plot(X,y,theta_guess=None, theta0=None,theta1=None,factor=10):
     J = np.zeros((len(theta0),len(theta1)))
     for id1 in range(0,len(theta0)):
         for id2 in range(0,len(theta1)):
-            J[id1,id2] = compute_cost(X,y, [theta0[id1], theta1[id2]])
+            J[id1,id2] = compute_cost(X,y, np.array([theta[0],theta0[id1], theta1[id2]]))
 
     fig = plt.figure()
     ax = fig.add_subplot(211, projection='3d')
@@ -323,7 +361,7 @@ def test():
     normal:    1.0e+04 * [-4.698317251656216, 0.005848790585483, 9.808214891250811]
     """
     ## Load data into dataframe
-    df = pd.read_csv("../test/data/ex1data2.txt",names=["area","rooms","price"])
+    df = pd.read_csv(os.path.join(_SMARTY_DIR, "test","data","ex1data2.txt"),names=["area","rooms","price"])
     X = np.array(df.iloc[:,0:2])
     y = np.array(df.price)
 
@@ -333,12 +371,18 @@ def test():
     theta = np.zeros(X.shape[1])
 
     ## Normalize X 
-    Xn,mu,sigma=smartypy.linearRegression.normalize_features(X)
+    Xn,mu,sigma = normalize_features(X)
 
     ## Gradient Descent
-    theta, Jhistory = smartypy.linearRegression.gradient_descent(Xn,y,[0,0,0],0.01)
+    theta, Jhistory = train_gradient_descent(Xn,y,[0,0,0],0.01)
 
     fit_plot(X,y)
+
+    ## Second example
+    df = pd.read_csv(os.path.join(_SMARTY_DIR, "test","data","ex1data2.txt"),names=["area","rooms","price"])
+    X = np.array(df.iloc[:,0:2])
+    y = np.array(df.price)
     J_plot(X,y)
     return X, y, theta
+
 

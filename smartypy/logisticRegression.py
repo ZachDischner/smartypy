@@ -191,9 +191,6 @@ def compute_gradient(X,y,theta,lam=1.0):
     m = len(y)
     n = len(theta)
     hypothesis = hypothesize(X,theta)
-    # grad = []
-    # for jj in range(n):
-    #     grad.append( (1.0/m) * sum((hypothesis - y)*X[:,jj]))
 
     # This part subustitute the theta0 term with zero in the theta array since it does not get regularized
     tmp = theta[0]
