@@ -57,6 +57,23 @@ git clone git@github.com:ZachDischner/smartypy.git
 ```
 
 ### Examples
+#### Simple Neural Networks
+Check the `Demo.ipynb` notebook for inteactive demonstration and usage case. 
+
+Simple Example:
+```
+from smartypy import neuralNetwork
+## Form a simple 2-layer SupervisedNeuralNetwork Object with loaded X sample array and y solutions
+snn = neuralNetwork.SupervisedNeuralNetwork(X,y, 
+                                            num_classifications=num_classifications, 
+                                            regularization=1.0)
+# Note, object determines input and output layer size automagically
+print(snn)
+snn.train(max_iter=10)
+print("Trained Neural Network with final cost calculated as J = {}".format(snn.J))
+```
+![Notebook](http://i.imgur.com/fk2c6cz.png)
+
 #### Linear Regression
 In smartypy top level directory: `ipython`
 ```
@@ -143,7 +160,8 @@ bp3.classify(np.array([50,65]))
 Never ending list. Top among them:
 
 * Testing cases with `pytest` 
-* Logistic Regression Functions
+* Create Linear Regression class with polynomial mapping, etc stored in class for easier use
+* Consolodate minimization functionality that is sorta duplicated in all modules into a single one, with kwargs to choose the minimization. Better yet, logic to choose the best minimization for the given problem (scipy.optimize has a good discussion therein)
 * `numba.njit` optimizations
 
         
