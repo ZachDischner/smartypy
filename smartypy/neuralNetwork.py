@@ -25,7 +25,9 @@ Examples:
 
 TODO:
     *Forward and back propegate kinda messy. Think up a recursive implementation. I like that much better
-    *Build NeuralNetwork class that facilitates everything. Potentially reimplement FP/BP since the class can know about start/stop conditions
+    *Refactor NeuralNetwork() class a bit so that FP/BP since the class can know about start/stop conditions, and use 
+        Layer() objects. Leave standalone functions alone. Should make the process much clearer. 
+    *Implement NeuralNetwork() train method that doesn't just unnecessarily call the standalone function?
     *Using numpy Matrix instead of arrays sounds smarter. More Matlabl like where rows/columns matter. Refactor?
     """
 ##############################################################################
@@ -50,12 +52,20 @@ from numpy import log,zeros,ones
 
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.split(_here)[0])   # Absolute version of sys.path.append(..). Helpful so we can run this module standalone...
 from smartypy import utils, _SMARTY_DIR
-from smartypy.logisticRegression import sigmoid, sigmoid_prime, hypothesize, _dimensionalize_y,displayData # consolodate these to some other function?
+from smartypy.utils import sigmoid, sigmoid_prime, hypothesize
+from smartypy.logisticRegression import displayData 
 
 ###### Module variables
-term_height, term_width = os.popen('stty size', 'r').read().split()
-np.set_printoptions(precision=5,linewidth=int(term_width)-5)
+
+## Set output for numpy display to be the terminal width
+try:
+    term_height, term_width = os.popen('stty size', 'r').read().split()
+    np.set_printoptions(precision=5,linewidth=int(term_width)-5)
+except:
+    ## Doesn't work from ipython notebooks. But that's okay
+    pass
 
 
 ##############################################################################
@@ -107,6 +117,10 @@ class Layer(object):
 class SupervisedNeuralNetwork(object):
     """Object containing multiple layers, which which you can compute the traversal
     of input dataset through many hidden activation layers
+
+    Uses separate, raw function versions of forward/back propegation, training, etc all defined
+    below for computation. I'd like to see a refactor where the forward/back prop is contained 
+    within the class and takes advantage of some of the information that the class has.
     """
 
     @property
@@ -118,32 +132,43 @@ class SupervisedNeuralNetwork(object):
 
     def __repr__(self):
         if len(self.layers) > 0:
-            me = """Neural Network with {} Layers, mapping {} inputs to {} outputs""".format(len(self.layers), self.layers[0], self.layers[-1])
+            me = """Neural Network with {} Layers, mapping {} inputs to {} outputs. Current approx cost {}""".format(len(self.layers), self.layers[0], self.layers[-1],self.J)
         else:
             me = """Empty Neural Network (does nothing to input)"""
         return me
 
-    def __init__(self,X,y,hidden_layer_sizes=None, num_classifications=None, regularization=1.0):
+    def __init__(self,X,y,hidden_layer_sizes=None, num_classifications=None, regularization=1.0, train_percent=100):
         """Not bothering with much until we get further in the class
         
         If num_classifications is not provided, it is assumed that y has the full set of representative solutions
         Vectors of classiciations are built based off of y, where the classification index corresponds to the value of y
         AKA if y has 10 unique elements, y_classifications will be made of 10 element vectors, where y==0 corresponds
         to y_classifications[0] = 1
+
+        Kwargs:
+            hidden_layer_sizes:     (list) list of hidden layer node sizes. If not provided, neural network 
+                                    is a simple input-output 2 layer mapping
         """
-        self.Xtrain = X
+        self.train_percent = train_percent
+        self.X = X
         self.m,self.n = X.shape
         self.y = y
         if num_classifications is None:
             num_classifications = len(np.unique(y))
-            self.y_classifications = zeros((self.m,num_classifications))
-            for idx in range(self.m):
-                self.y_classifications[idx,y[idx]] = 1
+        
+        self.y_classifications = zeros((self.m,num_classifications))
+        for idx in range(self.m):
+            self.y_classifications[idx,y[idx]] = 1
+
         self.layers = [self.n, num_classifications]
         self.as_ = None
         self.zs = None
         self.lam = regularization
         self.initialize()
+
+        if hidden_layer_sizes is not None:
+            for layersize in hidden_layer_sizes:
+                self.add_layer(layersize)
 
     def add_layer(self,num_nodes):
         """Adds a hidden layer to the neural network"""
@@ -159,8 +184,18 @@ class SupervisedNeuralNetwork(object):
             next(b, None)
             return zip(a, b)
         self.thetas = []
+        
+        ###### Initialize all theta mapping matrices
         for nodes_in,nodes_out in pairwise(self.layers):
             self.thetas.append(initialize_theta(nodes_in,nodes_out))
+
+        ###### Initialize the training and cross validation matrices
+        ## in work, not used yet
+        rand_indices = np.random.permutation(self.m)
+        num_to_train = int(self.train_percent/100*self.m)
+        self.Xtrain = self.X[rand_indices[0:num_to_train]]
+        self.J = self.cost()
+
 
     def forward_propegate(self):
         """Process input X through the neural network. 
@@ -189,7 +224,9 @@ class SupervisedNeuralNetwork(object):
         return predict(X,self.thetas)
 
     def train(self,max_iter=10):
-        self.thetas,self.train_status = train_NeuralNetwork(self.Xtrain,self.y,thetas=self.thetas,y_classifications=self.y_classifications,lam=1.0,max_iter=max_iter,report=True,check_grads=False)
+        self.thetas,self.train_status = train_NeuralNetwork(self.X,self.y,thetas=self.thetas,y_classifications=self.y_classifications,lam=1.0,max_iter=max_iter,report=True,check_grads=False)
+        self.cost()
+
 
 
 
@@ -629,6 +666,7 @@ def train_NeuralNetwork(X,y,layer_nodes=None,thetas=None, y_classifications=None
     
     ## Speed = 5, minimization=5
     # ret = fmin_cg(cost,thetas_vec,fprime=grad,maxiter=max_iter,full_output=True,callback=status_update, disp=True)
+    
     # print("Minimization completed with final cost {}".format(ret[1]))
     # thetas_opt = unflatten(ret[0],theta_shapes)
 
@@ -694,6 +732,24 @@ def nnCostFunction(nn_params,input_layer_size,hidden_layer_size,num_labels,X,y,l
 
     return J,grad
 
+def _load_test_data():
+    ###### Load up sample data
+    weights = os.path.join(_SMARTY_DIR,"test","data","ex3weights.mat")
+    dataset = os.path.join(_SMARTY_DIR,"test","data","ex3data1.mat")
+    inits = os.path.join(_SMARTY_DIR,"test","inits.mat")
+    mat = sio.loadmat(dataset)
+    wmat = sio.loadmat(weights)
+    inits =sio.loadmat(inits)
+
+    X = mat['X']
+    # Load y specifically into 1d array with datatype int16 (from mat file, it is an uint8. Which can cause tricksy issues)
+    y = mat['y'][:,0].astype('int16')
+    y[y==10] = 0
+
+    ## Classifiers are shifted by 1 to the array index, since the theta training was done in Matlab with 1 indexing
+    theta1 = wmat["Theta1"] # provided already trained weights
+    theta2 = wmat["Theta2"]
+    return X,y,theta1,theta2
 
 def _test_prediction():
     """Comprehensive unit test would be nice. For now, just perform the same test procedure
@@ -701,23 +757,9 @@ def _test_prediction():
     """
     print("\n\n==============================Begin Neural Network Prediction Test============================\n")
 
-    ###### Load X,y and weights from Matlab saved mat files
-    dataset = os.path.join(_SMARTY_DIR,"test","data","ex3data1.mat")
-    weights = os.path.join(_SMARTY_DIR,"test","data","ex3weights.mat")
-    mat = sio.loadmat(dataset)
-    wmat = sio.loadmat(weights)
-
-    X = mat['X']
-    # Load y specifically into 1d array with datatype int16 (from mat file, it is an uint8. Which can cause tricksy issues)
-    y = mat['y'][:,0].astype('int16')
-    y[y==10] = 0
-    
-    ## Classifiers are shifted by 1 to the array index, since the theta training was done in Matlab with 1 indexing
-    classifiers = [1,2,3,4,5,6,7,8,9,0]
-    theta1 = wmat["Theta1"] # provided already trained weights
-    theta2 = wmat["Theta2"]
+    X,y,theta1,theta2 = _load_test_data()
     m,n = X.shape
-
+    classifiers = [1,2,3,4,5,6,7,8,9,0]
 
     ###### Form a Neural Network
     a0,z0 = activate(X,theta1)
@@ -748,18 +790,7 @@ def _test_prediction():
     return X,y,theta1,theta2,hypothesis,predictions
 
 def _test_nn():
-    ###### Load up sample data
-    weights = os.path.join(_SMARTY_DIR,"test","data","ex3weights.mat")
-    dataset = os.path.join(_SMARTY_DIR,"test","data","ex3data1.mat")
-    inits = os.path.join(_SMARTY_DIR,"test","inits.mat")
-    mat = sio.loadmat(dataset)
-    wmat = sio.loadmat(weights)
-    inits =sio.loadmat(inits)
-
-    X = mat['X']
-    # Load y specifically into 1d array with datatype int16 (from mat file, it is an uint8. Which can cause tricksy issues)
-    y = mat['y'][:,0].astype('int16')
-    y[y==10] = 0
+    X,y,theta1,theta2 = _load_test_data()
     m = len(y)
 
     num_classifications = len(np.unique(y))
@@ -772,7 +803,101 @@ def _test_nn():
     thetas_opt,ret = train_NeuralNetwork(X,y,layer_nodes)
     return X,y,thetas_opt,y_classifications
 
+def _test_NeuralNetworkObject():    
+    print("\n\n==============================Begin SupervisedNeuralNetwork() Test============================\n")
 
+    X,y,theta1,theta2 = _load_test_data()
+
+    ## Look how simple it is!
+    print("snn = SupervisedNeuralNetwork(X,y,hidden_layer_sizes=(400,25,10), num_classifications=10, regularization=1.0)\nsnn.train()\n")
+    snn = SupervisedNeuralNetwork(X,y,hidden_layer_sizes=(25), num_classifications=10, regularization=1.0)
+    snn.train(max_iter=100)
+    print("SupervisedNeuralNetwork() object trained with final cost")
+    print("\n\n==============================End SupervisedNeuralNetwork() Test============================\n")
+    return snn
+
+def _learning_curves():
+    """Just testing this out.
+
+    Best, make a class that accepts any kind of learner (logistic regression, linear regression, neural network) and 
+    specify correct cost() and training() functions so this process is all automagic. 
+    """
+    print("\n\n==============================Begin Learning Curves Test============================\n")
+
+    X,y,theta1,theta2 = _load_test_data()
+
+    m,n = X.shape
+    
+    num_classifications = len(np.unique(y))
+    y_classifications = zeros((m,num_classifications))
+    for idx in range(m):
+        y_classifications[idx,y[idx]] = 1
+
+
+    rand_indices = np.random.permutation(m)
+    train_percent = 80
+    num_to_train = int(train_percent/100*m)
+    Xtrain = X[rand_indices[0:num_to_train]]  
+    ytrain = y[rand_indices[0:num_to_train]]  
+
+    Xcv = X[rand_indices[num_to_train:]]  
+    ycv = y[rand_indices[num_to_train:]]  
+    y_class_cv = y_classifications[rand_indices[num_to_train:]]
+
+
+    ms = [1,2,3,5,10,50,100,200,300,400,500,600,700,1000,1500,2000,2500]
+    layer_nodes = (400,25,10)
+    Jtrain = []
+    Jcv = []
+    for mm in ms:
+        Xt = Xtrain[0:mm]
+        yt = ytrain[0:mm]
+        yclass_train = y_classifications[rand_indices[0:mm]]
+        thetas,ret = train_NeuralNetwork(Xt,yt,layer_nodes=layer_nodes,y_classifications=yclass_train,lam=1)
+        Jtrain.append(compute_cost(Xt,yt,thetas,y_classifications=yclass_train,lam=1))
+        Jcv.append(compute_cost(Xcv,ycv,thetas,y_classifications=y_class_cv,lam=1))
+
+    plt.figure()
+    plt.plot(ms,Jtrain,lw=3,label="Training Error")
+    plt.plot(ms,Jcv,lw=3,label="Cross Validation Error")
+    plt.xlabel("Number of Samples")
+    plt.ylabel("Cost")
+    plt.title("Learning Curve Cost Plot"),plt.grid(),plt.legend()
+    plt.show(block=False)
+
+    print("\n\n-------- Performing Regularization Validation Plot")
+    lambdas = [0,0.001,0.003,0.01,0.05,0.1,0.15,0.2,0.3,1,2,2.5,3,3.5,4,5,10]
+
+    Jtrain_val = []
+    Jcv_val = []
+    yclass_train = y_classifications[rand_indices[0:num_to_train]]
+    for lam in lambdas:
+
+        thetas,ret = train_NeuralNetwork(Xtrain,ytrain,layer_nodes=layer_nodes,y_classifications=yclass_train,lam=lam)
+        Jtrain_val.append(compute_cost(Xtrain,ytrain,thetas,y_classifications=yclass_train,lam=0))
+        Jcv_val.append(compute_cost(Xcv,ycv,thetas,y_classifications=y_class_cv,lam=0))
+
+    plt.figure()
+    plt.plot(lambdas,Jtrain_val,lw=3,label="Training Error")
+    plt.plot(lambdas,Jcv_val,lw=3,label="Cross Validation Error")
+    plt.xlabel("Regularization lambda")
+    plt.ylabel("Cost")
+    plt.title("Validation Curve Cost Plot"),plt.grid(),plt.legend()
+    plt.show(block=False)
+
+
+
+    print("\n\n==============================End Learning Curves Test============================\n")
+
+    return Jtrain,Jcv,Jtrain_val,Jcv_val
+
+
+def test():
+    """Pretty dumb and not production ready. Just calls the other _test() functions that demonstrate module use"""
+    _test_prediction()
+    _test_nn()
+    _test_NeuralNetworkObject()
+    _learning_curves()
 
 
 
@@ -783,7 +908,6 @@ def _test_nn():
 #----------*----------*----------*----------*----------*----------*----------*
 if __name__ == "__main__":
     test()
-
     ## Only for linux/mac, simple "press any key to continue" implemntation
     print("Press Any Key to Exit")
     os.system('read')
