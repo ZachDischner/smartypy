@@ -29,28 +29,15 @@ Note:
     Error checking, vector sizes, etc are omitted for the time being.
 
 Nomenclature:
-    Variables and nomenclature follows the same convention as specified in
-    Machine Learning course work. Outlined here so as to avoid repition in
-    function definitions
-
-        n:      Number of features (excluding x0 feature)
-        m:      Number of examples/samples
-        x:      Feature column vector dataset (m x 1)
-        X:      Feature or Design Matrix (m x n+1)
-        Xn:     Normalized Feature Matrix (m x n+1)
-        y:      Target/Solution vector (m x 1)
-        J:      Cost of a sample (single value)
-        theta:  Linear Regression Coefficient Vector (n+1 x 1) ==> theta0 + theta1*x1 + theta2*x2 ... + thetan*xn
-        h:      Hypothesis of form: h(X) = X @ theta
-                                    h(x) = theta.T @ x ==> [ --- theta --- ] @ [x]
+    See README.md
 
 TODO:
+    * Implement a class that keeps track of polymap/normalization values, knows what to do
+    * Integrate with "learning curves" assessment module
+    * Integrate with real scipy optimizers. 
     * Duplicate MATLAB test script in here. See logisticRegression.py ==> test() methods
     * Type/vector size error handling?
-    * Optimizations, @njit,
-    * Regularization for cost function?
     * Unit tests!! *doctest for small functions? pytest for bigger ones
-    * Add J(theta) contour plot
 
     """
 
@@ -67,6 +54,7 @@ from numba import jit, njit
 
 ## Local utility module
 _here = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.split(_here)[0])   # Absolute version of sys.path.append(..). Helpful so we can run this module standalone...
 from smartypy import utils, _SMARTY_DIR
 
 ###### Module variables
