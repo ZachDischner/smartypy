@@ -233,7 +233,7 @@ class SupervisedNeuralNetwork(object):
 ##############################################################################
 #                                   Functions
 #----------*----------*----------*----------*----------*----------*----------*
-def activate(a,theta):
+def activate(a,theta,hidden_layer=False):
     """Process activation matrix `a`(j-1) through next layer with weights vector characterized
     by theta.
 
@@ -263,7 +263,14 @@ def activate(a,theta):
             a = np.insert(a,0,1,axis=1) 
 
     z = a @ theta.T
-    a_next = sigmoid(z)
+
+    ## Hidden layers should use the tanh() function according to http://yann.lecun.com/exdb/publis/pdf/lecun-98b.pdf
+    if hidden_layer:
+        a_next = np.tanh(z)
+    else:
+        a_next = sigmoid(z)
+    ## Should use this for internal layers...
+
     return a_next,z
 
 def initialize_theta(L_in,L_out,epsilon=0.12):
@@ -306,7 +313,11 @@ def forward_propegate(X, thetas):
     ## Add 1s, offset column to X
     a.append(np.insert(X,0,1,axis=1))
     for layernum, theta in enumerate(thetas):
-        a_next,z_next = activate(a[-1],theta)
+        if (layernum == 0) or (layernum==len(thetas)-1):
+            hidden_layer = False
+        else:
+            hidden_layer = True
+        a_next,z_next = activate(a[-1],theta,hidden_layer=hidden_layer)
 
         ## If on the last layer, don't add bias column.
         if layernum == len(thetas)-1:
@@ -898,7 +909,6 @@ def test():
     _test_nn()
     _test_NeuralNetworkObject()
     _learning_curves()
-
 
 
 
