@@ -6,5 +6,4 @@ test.o
 *.test
 *.pyc
 *token.mat
-projects/*
 .ipynb_checkpoints
