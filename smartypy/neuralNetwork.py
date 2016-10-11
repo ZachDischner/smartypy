@@ -582,7 +582,7 @@ def check_gradients(X,y,thetas,lam=1.0):
     return good, gtrue_flat,g_approx,shapes
 
 iternum = 0
-def train_NeuralNetwork(X,y,layer_nodes=None,thetas=None, y_classifications=None,lam=1.0,max_iter=20,report=True,check_grads=False):
+def train_NeuralNetwork(X,y,layer_nodes=None,thetas=None, y_classifications=None,lam=1.0,max_iter=15,report=True,check_grads=False):
     """Train a neural network with sample data X, solutions y, list of node sizes
     
     Assumptions:
@@ -661,7 +661,8 @@ def train_NeuralNetwork(X,y,layer_nodes=None,thetas=None, y_classifications=None
     ## Speed/accuracy stats are based off of test case. Favorites first
 
     ## Newton CG: Speed = 8, minimization=2
-    ret = minimize(cost_and_grad, thetas_vec, method='newton-cg', jac=True, callback=status_update, options={"maxiter":max_iter,"disp":report})
+    # ret = minimize(cost_and_grad, thetas_vec, method='newton-cg', jac=True, callback=status_update, options={"maxiter":max_iter,"disp":report})
+
 
     ## L-BFGS-B: Speed = 10, minimization=4    
     # ret = minimize(cost_and_grad, thetas_vec, method='L-BFGS-B', jac=True, callback=None, options={"maxiter":max_iter,"disp":report})
@@ -672,14 +673,13 @@ def train_NeuralNetwork(X,y,layer_nodes=None,thetas=None, y_classifications=None
     ## BFGS: Speed = 0---, minimization=5 
     # ret = minimize(cost_and_grad, thetas_vec, method='BFGS', jac=True, callback=status_update, options={"maxiter":max_iter,"disp":report})
 
-    print("Minimization completed with final cost {}".format(ret.fun))
-    thetas_opt = unflatten(ret.x,theta_shapes)
+    # print("Minimization completed with final cost {}".format(ret.fun))
+    # thetas_opt = unflatten(ret.x,theta_shapes)
     
     ## Speed = 5, minimization=5
-    # ret = fmin_cg(cost,thetas_vec,fprime=grad,maxiter=max_iter,full_output=True,callback=status_update, disp=True)
-    
-    # print("Minimization completed with final cost {}".format(ret[1]))
-    # thetas_opt = unflatten(ret[0],theta_shapes)
+    ret = fmin_cg(cost,thetas_vec,fprime=grad,maxiter=max_iter,full_output=True,callback=status_update, disp=True)
+    print("Minimization completed with final cost {}".format(ret[1]))
+    thetas_opt = unflatten(ret[0],theta_shapes)
 
     return thetas_opt,ret
 
@@ -821,7 +821,7 @@ def _test_NeuralNetworkObject():
 
     ## Look how simple it is!
     print("snn = SupervisedNeuralNetwork(X,y,hidden_layer_sizes=(400,25,10), num_classifications=10, regularization=1.0)\nsnn.train()\n")
-    snn = SupervisedNeuralNetwork(X,y,hidden_layer_sizes=(25), num_classifications=10, regularization=1.0)
+    snn = SupervisedNeuralNetwork(X,y,hidden_layer_sizes=[25], num_classifications=10, regularization=1.0)
     snn.train(max_iter=100)
     print("SupervisedNeuralNetwork() object trained with final cost")
     print("\n\n==============================End SupervisedNeuralNetwork() Test============================\n")

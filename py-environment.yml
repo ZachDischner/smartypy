@@ -1,16 +1,15 @@
 name: smartypy
 dependencies:
   - python=3.5
-  - numpy
+  - setuptools
+  - ipython
+  - numpy>=1.8
   - pandas
   - scipy
-  - astropy
   - matplotlib
   - numba
-  - sklearn
-  - pip:
-    - poliastro
-    - jupyter
-    - spiceypy
+  - scikit-learn
+  - jupyter
+  - pytest
 
 # Shoudl work cross platform...
