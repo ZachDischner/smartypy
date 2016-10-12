@@ -12,4 +12,10 @@ dependencies:
   - jupyter
   - pytest
 
-# Shoudl work cross platform...
+pip:
+  - keras
+
+# Should work cross platform...
+# Install tensorflow https://www.tensorflow.org/versions/r0.11/get_started/os_setup.html#optional-setup-gpu-for-mac
+#  conda install -c conda-forge tensorflow
+#  pip install tflearn

@@ -7,3 +7,4 @@ test.o
 *.pyc
 *token.mat
 .ipynb_checkpoints
+.vscode
