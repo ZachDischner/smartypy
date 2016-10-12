@@ -9,6 +9,7 @@ dependencies:
   - matplotlib
   - numba
   - scikit-learn
+  - scikit-image
   - jupyter
   - pytest
 
