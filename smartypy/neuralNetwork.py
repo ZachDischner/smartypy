@@ -685,7 +685,7 @@ def train_NeuralNetwork(X,y,layer_nodes=None,thetas=None, y_classifications=None
 
 
 #--------------------------------------------------------------------------------
-#------------- Not portable: general purpose test specific functions ------------
+#------------ Not portable orgeneral purpose: test specific functions ----------
 #--------------------------------------------------------------------------------
 
 ## Taken from previous course material as a sanity check. https://github.com/royshoo/mlsn/blob/master/python/funcsEx04.py
