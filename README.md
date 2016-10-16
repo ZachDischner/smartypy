@@ -74,6 +74,15 @@ print("Trained Neural Network with final cost calculated as J = {}".format(snn.J
 ```
 ![Notebook](http://i.imgur.com/fk2c6cz.png)
 
+#### Simple K-Means Unsupervised Classification
+See `projects/Smarty-Kmeans.ipynb` for demo of a basic K-Means clustering algorithm. 
+
+**Illustrated Clustering Evolution**
+![Illustration](http://i.imgur.com/ZYuOibW.png)
+
+**Image Compression with K-Means Clustering**
+![Imgur](http://i.imgur.com/JiL3I39.png)
+
 #### Linear Regression
 In smartypy top level directory: `ipython`
 ```
