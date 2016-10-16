@@ -398,12 +398,14 @@ def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_le
 def displayData(X):
     """Taken unabashedly from https://github.com/royshoo/mlsn/blob/master/python/courseraEx03.py
 
+    Modified to deal with depreciation warning.
+
     I really don't like how much time I waste on fiddling with plots and whatnot. Best to take someone 
     else's and focus on the real stuff.
     """
     # python translation of displayData.m from coursera
     # For now, only "quadratic" image
-    example_width = np.round(np.sqrt(X.shape[1]))
+    example_width = int(np.round(np.sqrt(X.shape[1])))
     example_height = example_width
     
     display_rows = np.floor(np.sqrt(X.shape[0]))
@@ -411,7 +413,7 @@ def displayData(X):
 
     pad = 1
 
-    display_array = -np.ones((pad+display_rows*(example_height+pad), pad+display_cols*(example_width+pad)))
+    display_array = -np.ones((int(pad+display_rows*(example_height+pad)), int(pad+display_cols*(example_width+pad))))
 
     curr_ex = 0
 

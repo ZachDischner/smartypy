@@ -32,6 +32,7 @@ Nomenclature:
     See README.md
 
 TODO:
+    * Integrate the normalization() functions consolodated within utils.py
     * Implement a class that keeps track of polymap/normalization values, knows what to do
     * Integrate with "learning curves" assessment module
     * Integrate with real scipy optimizers. 
