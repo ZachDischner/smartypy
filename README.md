@@ -57,8 +57,10 @@ git clone git@github.com:ZachDischner/smartypy.git
 ```
 
 ### Examples
+Check out example projects and demos within the `projects` directory. 
+
 #### Simple Neural Networks
-Check the `Demo.ipynb` notebook for inteactive demonstration and usage case. 
+Check the `projects/smarty-NeuralNetworkDemo.ipynb` notebook for inteactive demonstration and usage case. 
 
 Simple Example:
 ```
