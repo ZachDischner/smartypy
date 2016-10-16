@@ -36,6 +36,64 @@ sys.path.append(os.path.split(_here)[0])   # Absolute version of sys.path.append
 ##############################################################################
 #                                   Functions
 #----------*----------*----------*----------*----------*----------*----------*
+## @njit on these speed it up from 91us to 3us. Cool! About 9x faster than matlab
+@njit
+def _normalize_feature(x):
+    """Normalize a feature to zero mean, 1 std range
+
+    Algorithm:
+                       (x[i] - mu)
+        x_norm[i]  =  -------------
+                         sigma
+
+    Args:
+        x:  Feature vector to normalize
+
+    Returns:
+        x_norm: Normalized feature vector
+        mu:     Computed mean of normalization
+        sigma:  Computed standard deviation of feature
+
+    >>> _normalize_feature(np.array([2104, 1600, 2400, 1416]))
+    (array([ 0.57160715, -0.71450894,  1.32694517, -1.18404339]), 1880.0, 391.8775318897474)
+    """
+    sigma  = x.std() # Kinda confused about dimensional normalization. ddof=1 matches matlab's default. Can't do with numba
+    mu     = x.mean()
+    if sigma == 0:
+        x_norm = x*1.0 # Do this so we can jit, makes sure x_norm is always float
+    else:
+        x_norm = (x-mu)/sigma
+    return x_norm, mu, sigma
+
+@njit
+def normalize_features(X):
+    """Normalize a feature array. See _normalize_feature
+    """
+    n = X.shape[1]
+    Xn = np.zeros(X.shape)
+    mu, sigma = np.zeros(n),np.zeros(n)
+
+    ## Smarter way to map() this or something??
+    # Figure this is pretty fast and readable. Could do same thing with a comprehension but
+    # reconstruction is pretty ugly
+    for idx in range(n):
+        Xn[:,idx],mu[idx], sigma[idx] = _normalize_feature(X[:,idx])
+    return Xn, mu, sigma
+
+def is_normalized(X):
+    if False in list(map(lambda x: np.isclose(x,0), np.mean(X,axis=0))):
+        return False
+    if False in list(map(lambda x: np.isclose(x,1), np.std(X,axis=0))):
+        return False
+    return True
+    
+def denormalize(Xn, mu, sigma):
+    """Denormalize features, get back to starting point
+
+    Same logic works for single vector feature (x) and matrix of feature columns (X)
+    """
+    X = Xn*sigma + mu
+    return X
 
 def polymap(X, degree=1):
     """Using pro library:

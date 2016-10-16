@@ -369,7 +369,7 @@ def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_le
     Optionally, adds decision boundary contour specified by `theta`, calculated against range of x feature values
     mapped to higher order polynomial with order `poly_degree`
     """
-    fig = plt.figure()
+    # fig = plt.figure()
     plt.scatter(X[y==0,1], X[y==0,2], c='k', marker='x', linewidths=1.5, edgecolors='k', s=60, label=neg_legend)
     plt.scatter(X[y==1,1], X[y==1,2], c='g', marker='+', linewidths=1.5, edgecolors='k', s=40, label=pos_legend)
     plt.ylabel(ylabel)
@@ -393,7 +393,7 @@ def plot_data(X,y,theta=None, xlabel="X",ylabel="Y",pos_legend="Positive",neg_le
             c.collections[0].set_label('Decision Boundary')
     plt.legend()
     plt.show(block=False)
-    return fig
+    return None
 
 def displayData(X):
     """Taken unabashedly from https://github.com/royshoo/mlsn/blob/master/python/courseraEx03.py

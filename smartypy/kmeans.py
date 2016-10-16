@@ -13,7 +13,7 @@ File name: kmeans.py
 Created:  15/Oct/2016
 Modified: 15/Oct/2016
 
-Production ready? Lol no. 
+See _SMARTY_DIR/projects/Smarty-Kmeans.ipynb for usage demonstration
 
 Description:
     Utilities to perform kmeans unsupervised classification.  
