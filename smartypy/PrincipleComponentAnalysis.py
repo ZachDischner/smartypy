@@ -38,6 +38,8 @@ from numba import jit
 import scipy.io as sio
 import profile
 import pylab as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 ## Also get some because I don't like typing plt.this and plt.that all the time
 from pylab import plot,figure,legend,show,grid,scatter,axes,subplot,title
 
@@ -190,6 +192,33 @@ def test_2d_vis():
     legend(loc='best',prop={'size':10})
     return Xpca
 
+def test_3d_vis():
+    cm = plt.cm.get_cmap('hsv')
+
+    fig = figure(); ax = fig.add_subplot(111, projection='3d')
+
+    im = plt.imread(os.path.join(_SMARTY_DIR,"test","data","bird_small.png"))
+    x,y,channels = im.shape
+    X = np.reshape(im,(x*y,channels)).astype('float64')
+    m,n = X.shape
+    rand_indices = np.random.permutation(m)
+    num = 1000
+    sel = rand_indices[0:num]
+    ax.scatter(X[sel,0], X[sel,1], X[sel,2],c=X[sel,0],cmap=cm)
+    title("3D Data");plt.show()
+
+    ## Reduce to 2 dimensions
+    Xpca = PCApprox(X)
+    Xpca.reduce(2)
+    figure()
+    scatter(Xpca.Z[sel,0],Xpca.Z[sel,1],c=Xpca.Z[sel,0],cmap=cm)
+    title("2D PCA Projection");plt.grid();plt.show()
+
+    ## Re-project to 3D
+    fig = figure(); ax = fig.add_subplot(111, projection='3d')
+    Xapprox = Xpca.approximate()
+    ax.scatter(Xapprox[sel,0], Xapprox[sel,1], Xapprox[sel,2],c=Xapprox[sel,0],cmap=cm)
+    plt.title("2D PCA Projection");plt.grid();plt.show()
 
 def test():
     """Mimics the Matlab course exercise 7 for PCA"""
