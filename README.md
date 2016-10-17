@@ -43,7 +43,10 @@ Visual
 
 ### Python
 Anaconda's Python distribution is recomended for getting started. Easiest way to get started is to install and create a new Python 3.5 environment from the included (not minimal) `py-environment.yml` file. 
-http://conda.pydata.org/docs/using/envs.html
+http://conda.pydata.org/docs/using/envs.html. 
+
+**Disclaimer 1: I don't test this all the time so this could be missing a dependency or two. Should get you 99% of the way there though**
+**Disclaimer 2: Tensorflow isn't as simple as `conda install tensorflow` if you're using GPU stuff so you've probably gotta go figure out how to do that https://www.tensorflow.org/versions/r0.11/get_started/os_setup.html**
 
 ```
 $ conda env create -f py-environment.yml

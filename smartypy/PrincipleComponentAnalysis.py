@@ -61,7 +61,7 @@ class PCApprox(object):
     3. reduce() to lower dimensional space
         now PCApprox.Z is a lower dimensional PCA rep of the input xrange
     """
-    def __init__(self,X,confidence=0.95):
+    def __init__(self,X):
         self.X = X
         self.m, self.n = X.shape
         self.Xn, self.mu, self.sig = normalize_features(X)
@@ -71,10 +71,20 @@ class PCApprox(object):
         ## Calculate covariance and eigenvectors
         self.cov = 1.0/self.m * self.X.T @ self.X
         self.U, self.S, self.V = np.linalg.svd(self.cov)
+
+        ## Build dictionary of retained variances based on number of features employed
+        #   Algo: % variance returned  = sum(S[0:k])/sum(S[0:n]) * 100.0
+        # Dictonary maps number of features to the variance kept:    {1:95.3, 2:98.7 ... n:100}
+        self.retained_variance = {ix:sum(self.S[0:ix])/sum(self.S)*100.0 for ix in range(1,len(self.S)+1)}
     
-    def reduce(self,k=None):
+    def reduce(self,k=None,confidence=95):
+        """Reduce dataset X from n-dimensional space to a lower `k` dimensional space
+
+        If k is not explicitly provided, calculate the number of features that we can reduce X by
+        in order to still retain `confidence` percent of the variance of the original dataset. 
+        """
         if k is None:
-            k = self.determine_min_features()
+            k = self.determine_min_features(confidence=confidence)
 
         self.U_reduce = self.U[:,0:k]
 
@@ -102,9 +112,25 @@ class PCApprox(object):
         return sum(list(map(lambda x: norm(x)**2.0, self.X-self.approximate())))/self.m
          
     
-    def determine_min_features(self):
-        """Nothing yet"""
-        return 3
+    def determine_min_features(self,confidence=95):
+        """See how many features we can reduce dataset by in order to keep `confidence` percent confidence
+        
+        This number is the key in the PCApprox.retained_variance dictionary where the value is closest to (>=) the 
+        confidence requested. AKA:
+            {1: 25.604443757229038,
+            2: 43.795368734151999,
+            3: 55.29735314575742,
+            4: 60.490919416632316,
+            5: 63.651986466914536,
+            ...
+            110: 94.926312504904431,
+            111: 94.980130181545363,
+            112: 95.032769001571239,     <== With 112 features, we will retain 95% confidence
+            113: 95.085301693594445,
+        """
+        ## Killer answer from SO on how efficiently find that index: http://stackoverflow.com/questions/2236906/first-python-list-index-greater-than-x
+        min_features = next(ix for ix,v in enumerate(self.retained_variance.values()) if v >= confidence) +1
+        return min_features
         
 
 ##############################################################################
