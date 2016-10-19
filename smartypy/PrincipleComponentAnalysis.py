@@ -231,25 +231,26 @@ def test_3d_vis():
     num = 1000
     sel = rand_indices[0:num]
     ax.scatter(X[sel,0], X[sel,1], X[sel,2],c=X[sel,0],cmap=cm)
-    title("3D Data");plt.show()
+    title("3D Data");plt.show(block=False)
 
     ## Reduce to 2 dimensions
     Xpca = PCApprox(X)
     Xpca.reduce(2)
     figure()
     scatter(Xpca.Z[sel,0],Xpca.Z[sel,1],c=Xpca.Z[sel,0],cmap=cm)
-    title("2D PCA Projection");plt.grid();plt.show()
+    title("2D PCA Projection");plt.grid();plt.show(block=False)
 
     ## Re-project to 3D
     fig = figure(); ax = fig.add_subplot(111, projection='3d')
     Xapprox = Xpca.approximate()
     ax.scatter(Xapprox[sel,0], Xapprox[sel,1], Xapprox[sel,2],c=Xapprox[sel,0],cmap=cm)
-    plt.title("2D PCA Projection");plt.grid();plt.show()
+    plt.title("2D PCA Projection");plt.grid();plt.show(block=False)
 
 def test():
     """Mimics the Matlab course exercise 7 for PCA"""
     Xpca2d = test_2d_vis()
     XpcaFaces = test_face_decomposition()
+    test_3d_vis()
     return Xpca2d, XpcaFaces
     
 
