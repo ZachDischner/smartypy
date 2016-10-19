@@ -15,6 +15,9 @@ dependencies:
 
 pip:
   - keras
+  - plotly 
+  # plotly.tools.set_credentials_file(username='ZachDischnerZD', api_key='your_key')
+
 
 # Should work cross platform...
 # Install tensorflow https://www.tensorflow.org/versions/r0.11/get_started/os_setup.html#optional-setup-gpu-for-mac
