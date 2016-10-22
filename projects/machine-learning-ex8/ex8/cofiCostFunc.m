@@ -40,20 +40,15 @@ Theta_grad = zeros(size(Theta));
 %                     partial derivatives w.r.t. to each element of Theta
 %
 
+err = X*Theta' - Y;
+%% Cost
+%                                       | Multiply by R, only compute cost for movies taht have been rated
+J = 1/2 * sum(sum( (err.*R).^2 ) ) + lambda/2 * sum(sum(X.^2)) + lambda/2 * sum(sum(Theta.^2));
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+%% Gradients
+X_grad = (err.*R) * Theta + lambda*X;
+Theta_grad = (err.*R)' * X + lambda*Theta;
 
 % =============================================================
 

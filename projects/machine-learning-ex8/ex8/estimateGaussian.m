@@ -21,15 +21,17 @@ sigma2 = zeros(n, 1);
 %               should contain variance of the i-th feature.
 %
 
+% Average of each n columns
+mu = mean(X);
+sigma2 = var(X) * (m-1)/m; % Normalizes by 1/m-1. Matters?
 
-
-
-
-
-
-
-
-
+% sigma2=zeros(n,1);
+% for ix = 1:n
+%     for iy = 1:m
+%         sigma2(ix) = sigma2(ix) + (X(iy,ix) - mu(ix))^2;
+%     end
+%     sigma2(ix) = sigma2(ix)/m;
+% end
 % =============================================================
 
 
