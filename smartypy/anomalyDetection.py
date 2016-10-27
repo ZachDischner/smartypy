@@ -71,9 +71,10 @@ def get_probability(x,mu,var):
 
     Does multivariate gaussian estimate. Product of single gaussian estimates not put in place yet
     """
+    m,n = np.atleast_2d(x).shape
     variance = np.diag(var)
-    factor = 1.0/((2*np.pi) * np.linalg.det(variance)**0.5)
-    p = np.array([ factor * np.exp( (-0.5) * ((xx-mu).T @ np.linalg.inv(variance) @ (xx-mu)).sum() ) for xx in np.atleast_2d(x)])
+    factor = 1.0/((2*np.pi)**(n/2.0) * np.linalg.det(variance)**0.5)
+    p = np.array([ factor * np.exp( (-0.5) * ((xx).T @ np.linalg.inv(variance) @ (xx)).sum() ) for xx in np.atleast_2d(x-mu)])
     return p
     
 def evaluate_epsilon(yval,pval,epsilon):
@@ -122,9 +123,13 @@ def plot_gaussian(mu,var,epsilon=0.089881552536):
     c = contour(X1, X2, Z, levels=[epsilon], lw=3, label="Gaussian Boundary")
     clabel(c, inline=1, fmt='Epsilon=%3.5e', colors='k',fontsize=8)
 
-def _load_sample_data():
+def _load_sample_data(visual_set=True):
     ###### Load up sample data
-    dataset = os.path.join(_SMARTY_DIR,"test","data","ex8data1.mat")
+    if visual_set:
+        dataset = os.path.join(_SMARTY_DIR,"test","data","ex8data1.mat")
+    else:
+        dataset = os.path.join(_SMARTY_DIR,"test","data","ex8data2.mat")
+
     mat = sio.loadmat(dataset)
     X = mat['X']
     Xval = mat['Xval']
