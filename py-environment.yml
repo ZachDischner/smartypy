@@ -12,11 +12,15 @@ dependencies:
   - scikit-image
   - jupyter
   - pytest
+  - seaborn 
+  # http://seaborn.pydata.org/
 
 pip:
   - keras
   - plotly 
   # plotly.tools.set_credentials_file(username='ZachDischnerZD', api_key='your_key')
+  - altair
+  # https://altair-viz.github.io/
 
 
 # Should work cross platform...
