@@ -9,5 +9,7 @@ test.o
 .ipynb_checkpoints
 .vscode
 lor*.jpg
-projects/fishey/test_stg1/*
-projects/fishey/train/*
+projects/fishey/test_stg1*/*
+projects/fishey/train*/*
+projects/fishey/input
+*.pickle

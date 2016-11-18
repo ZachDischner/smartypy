@@ -17,6 +17,7 @@ dependencies:
 
 pip:
   - keras
+  - xgboost
   - plotly 
   # plotly.tools.set_credentials_file(username='ZachDischnerZD', api_key='your_key')
   - altair
